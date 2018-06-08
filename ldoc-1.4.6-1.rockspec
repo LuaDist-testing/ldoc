@@ -1,17 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "ldoc"
-version = "1.4.5-1"
+version = "1.4.6-1"
 
 -- LuaDist source
 source = {
-  tag = "1.4.5-1",
+  tag = "1.4.6-1",
   url = "git://github.com/LuaDist-testing/ldoc.git"
 }
 -- Original source
 -- source = {
 --   dir = "ldoc",
---   url = "http://stevedonovan.github.io/files/ldoc-1.4.5.zip"
+--   url = "http://stevedonovan.github.io/files/ldoc-1.4.6.zip"
 -- }
 
 description = {
