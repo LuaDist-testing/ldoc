@@ -109,6 +109,7 @@ function KindMap:add (item,items,description)
    local group = item[self.fieldname] -- which wd be item's type or section
    local kname = self.klass.types_by_tag[group] -- the kind name
    if not self[kname] then
+    -- print(kname,group,self.fieldname)
       self[kname] = M.type_iterator (items,self.fieldname,group)
       self.klass.descriptions[kname] = description
    end
@@ -462,7 +463,13 @@ function M.abspath (f)
    return res
 end
 
-function M.process_file_list (list, mask, operation, ...)
+function M.getallfiles(root,mask)
+   local res = List(dir.getallfiles(root,mask))
+   res:sort()
+   return res
+end
+
+function M.expand_file_list (list, mask)
    local exclude_list = list.exclude and M.files_from_list(list.exclude, mask)
    local files = List()
    local function process (f)
@@ -473,7 +480,7 @@ function M.process_file_list (list, mask, operation, ...)
    end
    for _,f in ipairs(list) do
       if path.isdir(f) then
-         local dfiles = List(dir.getallfiles(f,mask))
+         local dfiles = M.getallfiles(f,mask)
          for f in dfiles:iter() do
             process(f)
          end
@@ -483,11 +490,11 @@ function M.process_file_list (list, mask, operation, ...)
          quit("file or directory does not exist: "..M.quote(f))
       end
    end
+   return files
+end
 
-   if list.sortfn then
-      files:sort(list.sortfn)
-   end
-
+function M.process_file_list (list, mask, operation, ...)
+   local files = M.expand_file_list(list,mask)
    for f in files:iter() do
       operation(f,...)
    end

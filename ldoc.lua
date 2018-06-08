@@ -37,7 +37,7 @@ app.require_here()
 
 --- @usage
 local usage = [[
-ldoc, a documentation generator for Lua, vs 1.4.2
+ldoc, a documentation generator for Lua, vs 1.4.3
   -d,--dir (default doc) output directory
   -o,--output  (default 'index') output name
   -v,--verbose          verbose
@@ -108,6 +108,7 @@ local file_types = {
    ['.ldoc'] = lua,
    ['.luadoc'] = lua,
    ['.c'] = cc,
+   ['.h'] = cc,
    ['.cpp'] = cc,
    ['.cxx'] = cc,
    ['.C'] = cc,
@@ -149,6 +150,7 @@ local function setup_kinds ()
    ProjectMap:add_kind(lookup('classmod','Classes'))
    ProjectMap:add_kind(lookup('topic','Topics'))
    ProjectMap:add_kind(lookup('example','Examples'))
+   ProjectMap:add_kind(lookup('file','Source'))
 
    for k in pairs(kind_names) do
       if not known_types[k] then
@@ -231,6 +233,7 @@ local ldoc_contents = {
    'no_return_or_parms','no_summary','full_description','backtick_references', 'custom_see_handler',
    'no_space_before_args','parse_extra','no_lua_ref','sort_modules','use_markdown_titles',
    'unqualified', 'custom_display_name_handler', 'kind_names', 'custom_references',
+   'dont_escape_underscore','global_lookup','prettify_files','convert_opt'
 }
 ldoc_contents = tablex.makeset(ldoc_contents)
 
@@ -420,6 +423,7 @@ override 'merge'
 override 'not_luadoc'
 override 'module_file'
 override 'boilerplate'
+override 'all'
 
 setup_kinds()
 
@@ -447,15 +451,25 @@ local function reorder_module_file ()
    end
 end
 
+-- process files, optionally in order that respects master module files
+local function process_all_files(files)
+   local sortfn = reorder_module_file()
+   local files = tools.expand_file_list(files,'*.*')
+   if sortfn then files:sort(sortfn) end
+   for f in files:iter() do
+      process_file(f, file_list)
+   end
+   if #file_list == 0 then quit "no source files found" end
+end
+
 if type(args.file) == 'table' then
-   -- this can only be set from config file so we can assume it's already read
-   args.file.sortfn = reorder_module_file()
-   process_file_list(args.file,'*.*',process_file, file_list)
-   if #file_list == 0 then quit "no source files specified" end
+   -- this can only be set from config file so we can assume config is already read
+   process_all_files(args.file)   
+   
 elseif path.isdir(args.file) then
-   local files = List(dir.getallfiles(args.file,'*.*'))
    -- use any configuration file we find, if not already specified
    if not config_dir then
+      local files = List(dir.getallfiles(args.file,'*.*'))
       local config_files = files:filter(function(f)
          return path.basename(f) == args.config
       end)
@@ -466,16 +480,9 @@ elseif path.isdir(args.file) then
          end
       end
    end
-   -- process files, optionally in order that respects master module files
-   local sortfn = reorder_module_file()
-   if sortfn then files:sort(sortfn) end
-   for f in files:iter() do
-      process_file(f, file_list)
-   end
-
-   if #file_list == 0 then
-      quit(quote(args.file).." contained no source files")
-   end
+   
+   process_all_files({args.file})
+   
 elseif path.isfile(args.file) then
    -- a single file may be accompanied by a config.ld in the same dir
    if not config_dir then
@@ -521,21 +528,47 @@ local function add_special_project_entity (f,tags,process)
    return item, F
 end
 
+local function prettify_source_files(files,class,linemap) 
+   local prettify = require 'ldoc.prettify'
+
+   process_file_list (files, '*.*', function(f)
+      local ext = path.extension(f)
+      local ftype = file_types[ext]
+      if ftype then
+         local item = add_special_project_entity(f,{
+            class = class,
+         })
+         -- wrap prettify for this example so it knows which file to blame
+         -- if there's a problem
+         local lang = ext:sub(2)
+         item.postprocess = function(code)
+            return '<h2>'..path.basename(f)..'</h2>\n' ..
+                prettify.lua(lang,f,code,0,true,linemap and linemap[f])
+         end
+      end
+   end)
+end
+
 if type(ldoc.examples) == 'string' then
    ldoc.examples = {ldoc.examples}
 end
 if type(ldoc.examples) == 'table' then
-   local prettify = require 'ldoc.prettify'
+   prettify_source_files(ldoc.examples,"example")
+end
 
-   process_file_list (ldoc.examples, '*.lua', function(f)
-      local item = add_special_project_entity(f,{
-         class = 'example',
-      })
-      -- wrap prettify for this example so it knows which file to blame
-      -- if there's a problem
-      local ext = path.extension(f):sub(2)
-      item.postprocess = function(code) return prettify.lua(ext,f,code,0,true) end
-   end)
+if ldoc.prettify_files then
+   local files = List()
+   local linemap = {}
+   for F in file_list:iter() do
+      files:append(F.filename)
+      local mod = F.modules[1]
+      local ls = List()
+      for item in mod.items:iter() do
+         ls:append(item.lineno)
+      end
+      linemap[F.filename] = ls
+   end
+   prettify_source_files(files,"file",linemap)
 end
 
 if args.simple then
@@ -588,7 +621,6 @@ for mod in module_list:iter() do
    project:add(mod,module_list)
 end
 
-override 'all'
 
 if ldoc.sort_modules then
    table.sort(module_list,function(m1,m2)
@@ -721,7 +753,7 @@ if builtin_style or builtin_template then
    local function tmpwrite (name)
       local ok,text = pcall(require,'ldoc.html.'..name:gsub('%.','_'))
       if not ok then
-         quit("cannot find builtin template "..name..": "..text)
+         quit("cannot find builtin template "..name)
       end
       if not utils.writefile(path.join(tmpdir,name),text) then
          quit("cannot write to temp directory "..tmpdir)
@@ -749,6 +781,7 @@ ldoc.modules = module_list
 ldoc.title = ldoc.title or args.title
 ldoc.project = ldoc.project or args.project
 ldoc.package = args.package:match '%a+' and args.package or nil
+ldoc.updatetime = os.date("%Y-%m-%d %H:%M:%S")
 
 local html = require 'ldoc.html'
 
@@ -758,5 +791,3 @@ if args.verbose then
    print 'modules'
    for k in pairs(module_list.by_name) do print(k) end
 end
-
-

@@ -20,7 +20,7 @@ local tnext, append = lexer.skipws, table.insert
 
 -- a pattern particular to LuaDoc tag lines: the line must begin with @TAG,
 -- followed by the value, which may extend over several lines.
-local luadoc_tag = '^%s*@(%a+)'
+local luadoc_tag = '^%s*@(%w+)'
 local luadoc_tag_value = luadoc_tag..'(.*)'
 local luadoc_tag_mod_and_value = luadoc_tag..'%[(.*)%](.*)'
 
@@ -354,7 +354,7 @@ local function parse_file(fname, lang, package, args)
 
          -- end of a block of document comments
          if ldoc_comment and tags then
-            local line = t ~= nil and lineno()
+            local line = lineno()
             if t ~= nil then
                if item_follows then -- parse the item definition
                   local err = item_follows(tags,tok)

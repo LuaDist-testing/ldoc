@@ -152,6 +152,24 @@ function html.generate_output(ldoc, args, project)
       end
       return base..name..'.html'
    end
+   
+   function ldoc.include_file (file)
+      local text,e = utils.readfile(file)
+      if not text then quit("unable to include "..file)
+      else
+         return text
+      end
+   end
+
+-- these references are never from the index...?
+function ldoc.source_ref (fun)
+      local modname = fun.module.name
+      local pack,name = tools.split_dotted_name(modname)
+      if not pack then
+         name = modname
+      end
+      return (ldoc.single and "" or "../").."source/"..name..'.lua.html#'..fun.lineno
+   end
 
    function ldoc.use_li(ls)
       if #ls > 1 then return '<li>','</li>' else return '','' end
@@ -188,6 +206,11 @@ function html.generate_output(ldoc, args, project)
 
    function ldoc.is_list (t)
       return type(t) == 'table' and t.append
+   end
+   
+   function ldoc.strip_header (s)
+      if not s then return s end
+      return s:gsub('^%s*#+%s+','')
    end
 
    function ldoc.typename (tp)
@@ -226,6 +249,18 @@ function html.generate_output(ldoc, args, project)
         end
       end
       return names
+   end
+
+   -- the somewhat tangled logic that controls whether a type appears in the
+   -- navigation sidebar. (At least it's no longer in the template ;))
+   function ldoc.allowed_in_contents(type,module)
+      local allowed = true
+      if ldoc.kinds_allowed then
+         allowed = ldoc.kinds_allowed[type]
+      elseif ldoc.prettify_files and type == 'file' then
+         allowed = ldoc.prettify_files == 'show' or (module and module.type == 'file')
+      end
+      return allowed
    end
 
    local function set_charset (ldoc,m)

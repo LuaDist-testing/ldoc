@@ -16,6 +16,7 @@ local TAG_MULTI,TAG_ID,TAG_SINGLE,TAG_TYPE,TAG_FLAG,TAG_MULTI_LINE = 'M','id','S
 
 -- these are the basic tags known to ldoc. They come in several varieties:
 --  - 'M' tags with multiple values like 'param' (TAG_MULTI)
+--  - 'ML' tags which have a single multi-lined value like 'usage' (TAG_MULTI_LINE)
 --  - 'id' tags which are identifiers, like 'name' (TAG_ID)
 --  - 'S' tags with a single value, like 'release' (TAG_SINGLE)
 --  - 'N' tags which have no associated value, like 'local` (TAG_FLAG)
@@ -25,9 +26,9 @@ local known_tags = {
    class = 'id', name = 'id', pragma = 'id', alias = 'id', within = 'id',
    copyright = 'S', summary = 'S', description = 'S', release = 'S', license = 'S',
    fixme = 'S', todo = 'S', warning = 'S', raise = 'S', charset = 'S',
-   ['local'] = 'N', export = 'N', private = 'N', constructor = 'N', static = 'N';
+   ['local'] = 'N', export = 'N', private = 'N', constructor = 'N', static = 'N',include = 'S',
    -- project-level
-   module = 'T', script = 'T', example = 'T', topic = 'T', submodule='T', classmod='T',
+   module = 'T', script = 'T', example = 'T', topic = 'T', submodule='T', classmod='T', file='T',
    -- module-level
    ['function'] = 'T', lfunction = 'T', table = 'T', section = 'T', type = 'T',
    annotation = 'T', factory = 'T';
@@ -41,6 +42,7 @@ known_tags._project_level = {
    topic = true,
    submodule = true,
    classmod = true,
+   file = true,
 }
 
 known_tags._code_types = {
@@ -133,6 +135,7 @@ function doc.expand_annotation_item (tags, last_item)
    local item_name = last_item.tags.name
    for tag, value in pairs(tags) do
       if known_tags._annotation_tags[tag] then
+         tags.summary = nil
          tags:add('class','annotation')
          tags:add('summary',value)
          tags:add('name',item_name..'-'..tag..acount)
@@ -237,7 +240,7 @@ function File:finish()
       elseif doc.project_level(item.type) then
          this_mod = item
          local package,mname,submodule
-         if item.type == 'module' then
+         if item.type == 'module' or item.type == 'classmod' then
             -- if name is 'package.mod', then mod_name is 'mod'
             package,mname = split_dotted_name(this_mod.name)
             if self.args.merge then
@@ -287,6 +290,7 @@ function File:finish()
             else
                display_name = summary
                lookup_name = summary
+               item.summary = ''
             end
             item.display_name = display_name
             this_mod.section = item
@@ -368,11 +372,10 @@ function File:finish()
                   end
                end
                if this_section then
-                  section_description = this_section.summary..' '..(this_section.description or '')
-                  this_section.summary = ''
+                  --section_description = this_section.summary..' '..(this_section.description or '')
+                  --this_section.summary = ''
                elseif item.tags.within then
-                  section_description = item.tags.within
-                  item.section = section_description
+                  item.section = item.tags.within
                else
                   if item.type == 'function' or item.type == 'lfunction' then
                      section_description = "Methods"
@@ -380,8 +383,7 @@ function File:finish()
                   item.section = item.type
                end
             elseif item.tags.within then -- ad-hoc section...
-               section_description = item.tags.within
-               item.section = section_description
+               item.section = item.tags.within
             else -- otherwise, just goes into the default sections (Functions,Tables,etc)
                item.section = item.type;
             end
@@ -725,6 +727,8 @@ function Item:finish()
       local original_names = formal and formal or param_names
       local names = List()
       self.subparams = {}
+      params.map = {}
+
       for i,name in ipairs(original_names) do
          if type(name) ~= 'string' then
             self:error("declared table cannot have array entries")
@@ -742,7 +746,7 @@ function Item:finish()
             fields = nil
          end
 
-         params[name] = comments[i]
+         params.map[name] = comments[i]
          if pmods then
             pmods[name] = pmods[i]
          end
@@ -804,8 +808,9 @@ function build_arg_list (names,pmods)
    -- with @param[opt] b
    local buffer, npending = { }, 0
    local function acc(x) table.insert(buffer, x) end
-   -- a number of trailing [opt]s can be safely converted to [opt],[optchain],...
-   if pmods then
+   -- a number of trailing [opt]s will be usually converted to [opt],[optchain],...
+   -- *unless* a person uses convert_opt.
+   if pmods and not doc.ldoc.convert_opt then
       local m = pmods[#names]
       if m and m.opt then
          m.optchain = m.opt
@@ -852,11 +857,11 @@ function Item:type_of_param(p)
    return mparam and mparam.type or ''
 end
 
+-- default value for param; if optional but no default, it's just `true`.
 function Item:default_of_param(p)
    local m = self:param_modifiers(p)
    if not m then return nil end
    local opt = m.optchain or m.opt
-   if opt == true then return nil end
    return opt
 end
 
@@ -1100,6 +1105,11 @@ function Module:process_see_reference (s,modules,istype)
    else
       lua_manual_ref = global.lua_manual_ref
    end
+   -- pure C projects use global lookup (no namespaces)
+   if ldoc and ldoc.global_lookup == nil then
+      local using_c = ldoc.parse_extra and ldoc.parse_extra.C
+      ldoc.global_lookup = using_c or false
+   end
 
    -- is this a fully qualified module name?
    local mod_ref = modules.by_name[s]
@@ -1142,6 +1152,13 @@ function Module:process_see_reference (s,modules,istype)
          end
       end
    else -- plain jane name; module in this package, function in this module
+      if ldoc and ldoc.global_lookup then
+        for m in modules:iter() do
+            fun_ref = m:get_fun_ref(s)
+            if fun_ref then return reference(s,m,fun_ref) end
+        end
+        return nil,"function: "..s.." not found globally"
+      end
       mod_ref = modules.by_name[self.package..'.'..s]
       if ismod(mod_ref) then return reference(s, mod_ref,nil) end
       fun_ref = self:get_fun_ref(s)
@@ -1264,7 +1281,7 @@ function Item:dump(verbose)
       if #self.params > 0 then
          print 'parameters:'
          for _,p in ipairs(self.params) do
-            print('',p,self.params[p])
+            print('',p,self.params.map[p])
          end
       end
       if self.ret and #self.ret > 0 then

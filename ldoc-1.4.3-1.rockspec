@@ -1,18 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "ldoc"
-version = "1.4.2-1"
+version = "1.4.3-1"
 
 -- LuaDist source
 source = {
-  tag = "1.4.2-1",
+  tag = "1.4.3-1",
   url = "git://github.com/LuaDist-testing/ldoc.git"
 }
 -- Original source
 -- source = {
---   dir = "LDoc",
---   tag = "1.4.2",
---   url = "git://github.com/stevedonovan/LDoc.git"
+--   dir = "ldoc",
+--   url = "http://mysite.mweb.co.za/residents/sdonovan/ldoc-1.4.3.zip"
 -- }
 
 description = {
@@ -44,10 +43,12 @@ build = {
     ["ldoc.prettify"] = "ldoc/prettify.lua",
     ["ldoc.markdown"] = "ldoc/markdown.lua",
     ["ldoc.doc"] = "ldoc/doc.lua",
-    ["ldoc.html.ldoc_css"] = "ldoc/html/ldoc_css.lua",
     ["ldoc.html.ldoc_ltp"] = "ldoc/html/ldoc_ltp.lua",
+    ["ldoc.html.ldoc_md_ltp"] = "ldoc/html/ldoc_md_ltp.lua",
+    ["ldoc.html.ldoc_css"] = "ldoc/html/ldoc_css.lua",
     ["ldoc.html.ldoc_one_css"] = "ldoc/html/ldoc_one_css.lua",
     ["ldoc.html.ldoc_pale_css"] = "ldoc/html/ldoc_pale_css.lua",
+    ["ldoc.html.ldoc_fixed_css"] = "ldoc/html/ldoc_fixed_css.lua",
     ["ldoc.builtin.globals"] = "ldoc/builtin/globals.lua",
     ["ldoc.builtin.coroutine"] = "ldoc/builtin/coroutine.lua",
     ["ldoc.builtin.global"] = "ldoc/builtin/global.lua",
