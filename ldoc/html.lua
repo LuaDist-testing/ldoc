@@ -122,7 +122,10 @@ function html.generate_output(ldoc, args, project)
       else return name end
    end
 
-   function ldoc.no_spaces(s) return (s:gsub('%A','_')) end
+   function ldoc.no_spaces(s)
+      s = s:gsub('%s*$','')
+      return (s:gsub('%W','_'))
+   end
 
    function ldoc.titlecase(s)
       return (s:gsub('(%a)(%a*)',function(f,r)
@@ -167,6 +170,11 @@ function html.generate_output(ldoc, args, project)
       return names
    end
 
+   local function set_charset (ldoc,m)
+      m = m or ldoc.module
+      ldoc.doc_charset = m.tags.charset or ldoc.charset
+   end
+
    local module_template,err = utils.readfile (path.join(args.template,ldoc.templ))
    if not module_template then
       quit("template not found at '"..args.template.."' Use -l to specify directory containing ldoc.ltp")
@@ -183,11 +191,13 @@ function html.generate_output(ldoc, args, project)
    ldoc.module = ldoc.single
    if ldoc.single and args.one then
       ldoc.kinds_allowed = {module = true, topic = true}
+      ldoc.one = true
    end
    ldoc.root = true
    if ldoc.module then
       ldoc.module.info = get_module_info(ldoc.module)
    end
+   set_charset(ldoc)
    local out,err = template.substitute(module_template,{
       ldoc = ldoc,
       module = ldoc.module,
@@ -226,6 +236,7 @@ function html.generate_output(ldoc, args, project)
       for m in modules() do
          ldoc.module = m
          ldoc.body = m.body
+         set_charset(ldoc)
          m.info = get_module_info(m)
          if ldoc.body and m.postprocess then
             ldoc.body = m.postprocess(ldoc.body)

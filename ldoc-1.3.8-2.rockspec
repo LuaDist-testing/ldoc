@@ -1,16 +1,16 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "ldoc"
-version = "1.3.8-1"
+version = "1.3.8-2"
 
 -- LuaDist source
 source = {
-  tag = "1.3.8-1",
+  tag = "1.3.8-2",
   url = "git://github.com/LuaDist-testing/ldoc.git"
 }
 -- Original source
 -- source = {
---   dir="LDoc",
+--   dir="ldoc",
 --   url = "http://stevedonovan.github.com/files/ldoc-1.3.8.zip"
 -- }
 

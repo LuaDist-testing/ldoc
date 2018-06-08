@@ -24,7 +24,7 @@ local known_tags = {
    param = 'M', see = 'M', usage = 'ML', ['return'] = 'M', field = 'M', author='M';
    class = 'id', name = 'id', pragma = 'id', alias = 'id', within = 'id',
    copyright = 'S', summary = 'S', description = 'S', release = 'S', license = 'S',
-   fixme = 'S', todo = 'S', warning = 'S', raise = 'S',
+   fixme = 'S', todo = 'S', warning = 'S', raise = 'S', charset = 'S',
    ['local'] = 'N', export = 'N', private = 'N', constructor = 'N', static = 'N';
    -- project-level
    module = 'T', script = 'T', example = 'T', topic = 'T', submodule='T',
@@ -346,7 +346,7 @@ end
 -- is not empty.
 
 function File:add_document_section(title)
-   local section = title:gsub('%A','_')
+   local section = title:gsub('%W','_')
    self:new_item {
       name = section,
       class = 'section',
@@ -700,7 +700,7 @@ end
 function Item:type_of_param(p)
    local mods = self.modifiers[self.parameter]
    if not mods then return '' end
-   local mparam = mods[p]
+   local mparam = rawget(mods,p)
    return mparam and mparam.type or ''
 end
 
@@ -710,8 +710,9 @@ function Item:type_of_ret(idx)
 end
 
 function Item:subparam(p)
-   if self.subparams[p] then
-      return self.subparams[p],p
+   local subp = rawget(self.subparams,p)
+   if subp then
+      return subp,p
    else
       return {p},nil
    end
