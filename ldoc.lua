@@ -1,3 +1,4 @@
+#!/usr/bin/env lua
 ---------------
 -- ## ldoc, a Lua documentation generator.
 --
@@ -5,6 +6,10 @@
 -- easier customization options.
 --
 -- C/C++ support for Lua extensions is provided.
+--
+-- Available from LuaRocks as 'ldoc' and as a [Zip file](http://stevedonovan.github.com/files/ldoc-1.2.0.zip)
+--
+-- [Github Page](https://github.com/stevedonovan/ldoc)
 --
 -- @author Steve Donovan
 -- @copyright 2011
@@ -22,7 +27,7 @@ app.require_here()
 
 --- @usage
 local usage = [[
-ldoc, a documentation generator for Lua, vs 1.1.0
+ldoc, a documentation generator for Lua, vs 1.2.0
   -d,--dir (default docs) output directory
   -o,--output  (default 'index') output name
   -v,--verbose          verbose
@@ -47,7 +52,7 @@ ldoc, a documentation generator for Lua, vs 1.1.0
   `ldoc -c path/to/myconfig.ld .` reads options from `path/to/myconfig.ld`
 ]]
 local args = lapp(usage)
-
+local lfs = require 'lfs'
 local doc = require 'ldoc.doc'
 local lang = require 'ldoc.lang'
 local tools = require 'ldoc.tools'
@@ -119,6 +124,11 @@ ldoc.alias('tparam',{'param',modifiers={type="$1"}})
 ldoc.alias('treturn',{'return',modifiers={type="$1"}})
 ldoc.alias('tfield',{'field',modifiers={type="$1"}})
 
+function ldoc.tparam_alias (name,type)
+   type = type or name
+   ldoc.alias(name,{'param',modifiers={type=type}})
+end
+
 function ldoc.add_language_extension(ext,lang)
    lang = (lang=='c' and cc) or (lang=='lua' and lua) or quit('unknown language')
    if ext:sub(1,1) ~= '.' then ext = '.'..ext end
@@ -144,8 +154,8 @@ function ldoc.manual_url (url)
 end
 
 local ldoc_contents = {
-   'alias','add_language_extension','new_type','add_section',
-   'file','project','title','package','format','output','dir','ext',
+   'alias','add_language_extension','new_type','add_section', 'tparam_alias',
+   'file','project','title','package','format','output','dir','ext', 'topics',
    'one','style','template','description','examples','readme','all','manual_url',
    'no_return_or_parms','no_summary','full_description'
 }
@@ -196,7 +206,7 @@ local config_dir
 
 
 local ldoc_dir = arg[0]:gsub('[^/\\]+$','')
-local doc_path = ldoc_dir..'/ldoc/builtin/?.luadoc'
+local doc_path = ldoc_dir..'/ldoc/builtin/?.lua'
 
 
 -- ldoc -m is expecting a Lua package; this converts this to a file path
@@ -266,7 +276,7 @@ local function setup_package_base()
       args.package = source_dir
    elseif args.package == '..' then
       args.package = path.splitpath(source_dir)
-   elseif not args.package:find '[\//]' then
+   elseif not args.package:find '[\\/]' then
       local subdir,dir = path.splitpath(source_dir)
       if dir == args.package then
          args.package = subdir
@@ -390,15 +400,21 @@ if type(ldoc.examples) == 'table' then
    end)
 end
 
+ldoc.readme = ldoc.readme or ldoc.topics
 if type(ldoc.readme) == 'string' then
-   local item, F = add_special_project_entity(ldoc.readme,{
-      class = 'topic'
-   }, markup.add_sections)
-   -- add_sections above has created sections corresponding to the 2nd level
-   -- headers in the readme, which are attached to the File. So
-   -- we pass the File to the postprocesser can insert the section markers
-   -- and resolve inline @ references.
-   item.postprocess = function(txt) return ldoc.markup(txt,F) end
+   ldoc.readme = {ldoc.readme}
+end
+if type(ldoc.readme) == 'table' then
+   process_file_list(ldoc.readme, '*.md', function(f)
+      local item, F = add_special_project_entity(f,{
+         class = 'topic'
+      }, markup.add_sections)
+      -- add_sections above has created sections corresponding to the 2nd level
+      -- headers in the readme, which are attached to the File. So
+      -- we pass the File to the postprocesser, which will insert the section markers
+      -- and resolve inline @ references.
+      item.postprocess = function(txt) return ldoc.markup(txt,F) end
+   end)
 end
 
 -- extract modules from the file objects, resolve references and sort appropriately ---
@@ -414,7 +430,9 @@ for F in file_list:iter() do
 end
 
 for mod in module_list:iter() do
-   mod:resolve_references(module_list)
+   if not args.module then -- no point if we're just showing docs on the console
+      mod:resolve_references(module_list)
+   end
    project:add(mod,module_list)
 end
 
@@ -538,6 +556,7 @@ ldoc.kinds = project
 ldoc.modules = module_list
 ldoc.title = ldoc.title or args.title
 ldoc.project = ldoc.project or args.project
+ldoc.package = args.package:match '%a+' and args.package or nil
 
 local html = require 'ldoc.html'
 

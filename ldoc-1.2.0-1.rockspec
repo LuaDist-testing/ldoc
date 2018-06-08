@@ -1,17 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "ldoc"
-version = "1.1.0-2"
+version = "1.2.0-1"
 
 -- LuaDist source
 source = {
-  tag = "1.1.0-2",
+  tag = "1.2.0-1",
   url = "git://github.com/LuaDist-testing/ldoc.git"
 }
 -- Original source
 -- source = {
---   dir="ldoc",
---   url = "http://stevedonovan.github.com/files/ldoc-1.1.0-core.zip"
+--   dir="LDoc",
+--   url = "http://stevedonovan.github.com/files/ldoc-1.2.0-core.zip"
 -- }
 
 description = {
@@ -22,6 +22,8 @@ description = {
    render comments, as well as integrated readme documentation and
    pretty-printed example files
   ]],
+  homepage='http://stevedonovan.github.com/ldoc',
+  maintainer='steve.j.donovan@gmail.com',
   license = "MIT/X11",
 }
 
@@ -29,7 +31,6 @@ description = {
 dependencies = {
   "penlight"
 }
-
 
 build = {
   type = "builtin",
@@ -41,6 +42,17 @@ build = {
     ["ldoc.prettify"] = "ldoc/prettify.lua",
     ["ldoc.doc"] = "ldoc/doc.lua",
     ["ldoc.builtin.globals"] = "ldoc/builtin/globals.lua",
+    ["ldoc.builtin.coroutine"] = "ldoc/builtin/coroutine.lua",
+    ["ldoc.builtin.global"] = "ldoc/builtin/global.lua",
+    ["ldoc.builtin.debug"] = "ldoc/builtin/debug.lua",
+    ["ldoc.builtin.io"] = "ldoc/builtin/io.lua",
+    ["ldoc.builtin.lfs"] = "ldoc/builtin/lfs.lua",
+    ["ldoc.builtin.lpeg"] = "ldoc/builtin/lpeg.lua",
+    ["ldoc.builtin.math"] = "ldoc/builtin/math.lua",
+    ["ldoc.builtin.os"] = "ldoc/builtin/os.lua",
+    ["ldoc.builtin.package"] = "ldoc/builtin/package.lua",
+    ["ldoc.builtin.string"] = "ldoc/builtin/string.lua",
+    ["ldoc.builtin.table"] = "ldoc/builtin/table.lua",
     ["ldoc.parse"] = "ldoc/parse.lua",
     ["ldoc.html"] = "ldoc/html.lua",
     ["ldoc.lexer"] = "ldoc/lexer.lua",

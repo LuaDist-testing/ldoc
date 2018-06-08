@@ -104,6 +104,7 @@ local function parse_file(fname,lang, package)
    local current_item, module_item
 
    local tok,f = lang.lexer(fname)
+   if not tok then return nil end
 
     function lineno ()
       return tok:lineno()
@@ -133,6 +134,13 @@ local function parse_file(fname,lang, package)
 
    local mod
    local t,v = tnext(tok)
+   if t == '#' then
+      while t and t ~= 'comment' do t,v = tnext(tok) end
+      if t == nil then
+         F:warning('empty file')
+         return nil
+      end
+   end
    if lang.parse_module_call and t ~= 'comment'then
       while t and not (t == 'iden' and v == 'module') do
          t,v = tnext(tok)
@@ -170,8 +178,6 @@ local function parse_file(fname,lang, package)
                t,v = tok()
             end
          end
-
---         if not t then break end -- no more file!
 
          if t == 'space' then t,v = tnext(tok) end
 
@@ -276,7 +282,7 @@ end
 
 function parse.file(name,lang, args)
    local F,err = parse_file(name,lang, args.package)
-   if err then return F,err end
+   if err or not F then return F,err end
    local ok,err = xpcall(function() F:finish() end,debug.traceback)
    if not ok then return F,err end
    return F

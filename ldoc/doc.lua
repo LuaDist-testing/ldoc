@@ -104,6 +104,7 @@ function File:_init(filename)
    self.filename = filename
    self.items = List()
    self.modules = List()
+   self.sections = List()
 end
 
 function File:new_item(tags,line)
@@ -159,6 +160,8 @@ function File:finish()
             item.display_name = display_name
             this_mod.section = item
             this_mod.kinds:add_kind(display_name,display_name)
+            this_mod.sections:append(item)
+            this_mod.sections.by_name[display_name:gsub('%A','_')] = item
          end
       else
          -- add the item to the module's item list
@@ -186,7 +189,11 @@ function File:finish()
                item.section = this_mod.section.display_name
                -- if it was a class, then the name should be 'Class:foo'
                if this_mod.section.type == 'type' then
-                  item.name = this_mod.section.name .. ':' .. item.name
+                  local prefix = this_mod.section.name .. ':'
+                  local i1,i2 = item.name:find(prefix)
+                  if not (i1 == 1 and i2 == #prefix) then
+                     item.name =  prefix .. item.name
+                  end
                end
                section_description = this_mod.section.description
             else -- otherwise, just goes into the default sections (Functions,Tables,etc)
@@ -279,7 +286,7 @@ function Item.check_tag(tags,tag, value, modifiers)
             for m,v in pairs(amod) do
                local idx = v:match('^%$(%d+)')
                if idx then
-                  v, value = value:match('(%S+)%s+(.+)')
+                  v, value = value:match('(%S+)(.*)')
                end
                modifiers[m] = v
             end
@@ -338,6 +345,7 @@ end
 
 function Item:finish()
    local tags = self.tags
+   local quote = tools.quote
    self.name = read_del(tags,'name')
    self.type = read_del(tags,'class')
    self.modifiers = extract_tag_modifiers(tags)
@@ -349,7 +357,9 @@ function Item:finish()
    if  doc.project_level(self.type) then
       -- we are a module, so become one!
       self.items = List()
+      self.sections = List()
       self.items.by_name = {}
+      self.sections.by_name = {}
       setmetatable(self,Module)
    elseif not doc.section_tag(self.type) then
       -- params are either a function's arguments, or a table's fields, etc.
@@ -375,25 +385,38 @@ function Item:finish()
       end
       -- not all arguments may be commented: we use the formal arguments
       -- if available as the authoritative list, and warn if there's an inconsistency.
-      -- The _exception_ is if the formal args are just ... !
       if self.formal_args then
          local fargs = self.formal_args
-         if #fargs ~= 1 or fargs[1] ~= '...' then
+         if #fargs ~= 1 then
             local pnames, pcomments = names, comments
             names, comments = List(),List()
+            local varargs = fargs[#fargs] == '...'
             for i,name in ipairs(fargs) do
                if params then -- explicit set of param tags
-                  if pnames[i] ~= name then
+                  if pnames[i] ~= name and not varargs then
                      if pnames[i] then
-                        self:warning("param and formal argument name mismatch: '"..name.."' '"..pnames[i].."'")
+                        self:warning("param and formal argument name mismatch: "..quote(name).." "..quote(pnames[i]))
                      else
-                        self:warning("undocumented formal argument: '"..name.."'")
+                        self:warning("undocumented formal argument: "..quote(name))
                      end
+                  elseif varargs then
+                     name = pnames[i]
                   end
                end
                names:append(name)
                -- ldoc allows comments in the formal arg list to be used
                comments:append (fargs.comments[name] or pcomments[i] or '')
+            end
+            -- A formal argument of ... may match any number of params, however.
+            if #pnames > #fargs then
+               for i = #fargs+1,#pnames do
+                  if not varargs then
+                     self:warning("extra param with no formal argument: "..quote(pnames[i]))
+                  else
+                     names:append(pnames[i])
+                     comments:append(pcomments[i] or '')
+                  end
+               end
             end
          end
       end
@@ -485,7 +508,7 @@ end
 
 function Module:process_see_reference (s,modules)
    local mod_ref,fun_ref,name,packmod
-   if not s:match '^[%w_%.%:]+$' or not s:match '[%w_]$' then
+   if not s:match '^[%w_%.%:%-]+$' or not s:match '[%w_]$' then
       return nil, "malformed see reference: '"..s..'"'
    end
    -- is this a fully qualified module name?
@@ -513,7 +536,12 @@ function Module:process_see_reference (s,modules)
       if fun_ref then
          return reference(s,mod_ref,fun_ref)
       else
-         return nil,"function not found: "..s.." in "..mod_ref.name
+         fun_ref = mod_ref.sections.by_name[name]
+         if not fun_ref then
+            return nil,"function or section not found: "..s.." in "..mod_ref.name
+         else
+            return reference(fun_ref.name:gsub('_',' '),mod_ref,fun_ref)
+         end
       end
    else -- plain jane name; module in this package, function in this module
       mod_ref = modules.by_name[self.package..'.'..s]
@@ -585,6 +613,7 @@ end
 --------- dumping out modules and items -------------
 
 function Module:dump(verbose)
+   if self.type ~= 'module' then return end
    print '----'
    print(self.type..':',self.name,self.summary)
    if self.description then print(self.description) end
@@ -612,12 +641,27 @@ function Item:dump(verbose)
       print()
       print(self.type,name)
       print(self.summary)
-      if self.description then print(self.description) end
-      for _,p in ipairs(self.params) do
-         print(p,self.params[p])
+      if self.description and self.description:match '%S' then
+         print 'description:'
+         print(self.description)
       end
-      for tag, value in pairs(self.tags) do
-         print(tag,value)
+      if #self.params > 0 then
+         print 'parameters:'
+         for _,p in ipairs(self.params) do
+            print('',p,self.params[p])
+         end
+      end
+      if self.ret and #self.ret > 0 then
+         print 'returns:'
+         for _,r in ipairs(self.ret) do
+            print('',r)
+         end
+      end
+      if next(self.tags) then
+         print 'tags:'
+         for tag, value in pairs(self.tags) do
+            print(tag,value)
+         end
       end
    else
       print('* '..name..' - '..self.summary)

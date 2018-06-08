@@ -63,6 +63,16 @@ function KindMap:__call ()
    end
 end
 
+function KindMap:put_kind_first (kind)
+   -- find this kind in our kind list
+   local kinds = self.klass.kinds,kind
+   local idx = tablex.find(kinds,kind)
+   -- and swop with the start!
+   if idx then
+      kinds[1],kinds[idx] = kinds[idx],kinds[1]
+   end
+end
+
 function KindMap:type_of (item)
    local klass = self.klass
    local kind = klass.types_by_tag[item.type]
@@ -70,7 +80,7 @@ function KindMap:type_of (item)
 end
 
 function KindMap:get_section_description (kind)
-    return self.klass.descriptions[kind]
+   return self.klass.descriptions[kind]
 end
 
 -- called for each new item. It does not actually create separate lists,
@@ -81,7 +91,6 @@ function KindMap:add (item,items,description)
    local kname = self.klass.types_by_tag[group] -- the kind name
    if not self[kname] then
       self[kname] = M.type_iterator (items,self.fieldname,group)
-      --print(kname,description)
       self.klass.descriptions[kname] = description
    end
    item.kind = kname:lower()
@@ -208,7 +217,7 @@ function M.this_module_name (basename,fname)
    return M.name_of(lpath):gsub('%.init$','')
 end
 
-function M.find_existing_module (name, searchfn)
+function M.find_existing_module (name, dname, searchfn)
    local fullpath,lua = searchfn(name)
    local mod = true
    if not fullpath then -- maybe it's a function reference?
@@ -220,7 +229,7 @@ function M.find_existing_module (name, searchfn)
          fullpath = nil
       end
       if not fullpath then
-         return nil, "module or function '"..name.."' not found on module path"
+         return nil, "module or function '"..dname.."' not found on module path"
       else
          mod = fname
       end
@@ -231,13 +240,14 @@ end
 
 function M.lookup_existing_module_or_function (name, docpath)
    -- first look up on the Lua module path
-   local fullpath, mod = M.find_existing_module(name,path.package_path)
+   local fullpath, mod = M.find_existing_module(name,name,path.package_path)
    -- no go; but see if we can find it on the doc path
    if not fullpath then
-      fullpath, mod = M.find_existing_module(name, function(name)
-         local fpath = package.searchpath(name,docpath)
-         return fpath,true  -- result must always be 'lua'!
-      end)
+      fullpath, mod = M.find_existing_module("ldoc.builtin." .. name,name,path.package_path)
+--~       fullpath, mod = M.find_existing_module(name, function(name)
+--~          local fpath = package.searchpath(name,docpath)
+--~          return fpath,true  -- result must always be 'lua'!
+--~       end)
    end
    return fullpath, mod -- `mod` can be the error message
 end
