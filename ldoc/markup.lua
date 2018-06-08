@@ -3,9 +3,9 @@
 -- Currently just does Markdown, but this is intended to
 -- be the general module for managing other formats as well.
 
-require 'pl'
 local doc = require 'ldoc.doc'
 local utils = require 'pl.utils'
+local stringx = require 'pl.stringx'
 local prettify = require 'ldoc.prettify'
 local quit, concat, lstrip = utils.quit, table.concat, stringx.lstrip
 local markup = {}
@@ -35,7 +35,7 @@ local function resolve_inline_references (ldoc, txt, item, plain)
          label = label:gsub('_','\\_')
       end
       local html = ldoc.href(ref) or '#'
-      label = label or '?que'
+      label = label or qname
       local res = ('<a href="%s">%s</a>'):format(html,label)
       return res
    end))
@@ -111,18 +111,46 @@ local function process_multiline_markdown(ldoc, txt, F)
       L = L + 1
       return get()
    end
-   local line = getline()
-   local indent,code,start_indent
+   local function pretty_code (code, lang)
+      code = concat(code,'\n')
+      if code ~= '' then
+         local err
+         code, err = prettify.code(lang,filename,code..'\n',L,false)
+         append(res,'<pre>')
+         append(res, code)
+         append(res,'</pre>')
+      else
+         append(res,code)
+      end
+   end
+   local indent,start_indent
    local_context = nil
+   local line = getline()
    while line do
       local name = line:match '^@lookup%s+(%S+)'
       if name then
          local_context = name .. '.'
          line = getline()
       end
+      local fence = line:match '^```(.*)'
+      if fence then
+         local plain = fence==''
+         line = getline()
+         local code = {}
+         while not line:match '^```' do
+            if not plain then
+               append(code, line)
+            else
+               append(res, '     '..line)
+            end
+            line = getline()
+         end
+         pretty_code (code,fence)
+         line = getline() -- skip fence
+      end
       indent, line = indent_line(line)
       if indent >= 4 then -- indented code block
-         code = {}
+         local code = {}
          local plain
          while indent >= 4 or not non_blank(line) do
             if not start_indent then
@@ -135,7 +163,7 @@ local function process_multiline_markdown(ldoc, txt, F)
             if not plain then
                append(code,line:sub(start_indent))
             else
-               append(res, line)
+               append(res,line)
             end
             line = getline()
             if line == nil then break end
@@ -143,15 +171,7 @@ local function process_multiline_markdown(ldoc, txt, F)
          end
          start_indent = nil
          if #code > 1 then table.remove(code) end
-         code = concat(code,'\n')
-         if code ~= '' then
-            code, err = prettify.lua(filename,code..'\n',L)
-            code = resolve_inline_references(ldoc, code, err_item)
-            append(res, code)
-            append(res,'</pre>')
-         else
-            append(res ,code)
-         end
+         pretty_code (code,'lua')
       else
          local section = F.sections[L]
          if section then
@@ -167,13 +187,103 @@ local function process_multiline_markdown(ldoc, txt, F)
 end
 
 
-function markup.create (ldoc, format)
+-- Handle markdown formatters
+-- Try to get the one the user has asked for, but if it's not available,
+-- try all the others we know about.  If they don't work, fall back to text.
+
+local function generic_formatter(format)
+   local ok, f = pcall(require, format)
+   return ok and f
+end
+
+
+local formatters =
+{
+   markdown = function(format)
+      local ok, markdown = pcall(require, 'markdown')
+      if not ok then
+         print('format: using built-in markdown')
+         ok, markdown = pcall(require, 'ldoc.markdown')
+      end
+      return ok and markdown
+   end,
+   discount = generic_formatter,
+   lunamark = function(format)
+      local ok, lunamark = pcall(require, format)
+      if ok then
+         local writer = lunamark.writer.html.new()
+         local parse = lunamark.reader.markdown.new(writer,
+                                                    { smart = true })
+         return function(text) return parse(text) end
+      end
+   end
+}
+
+
+local function get_formatter(format)
+   local formatter = (formatters[format] or generic_formatter)(format)
+   if formatter then return formatter end
+
+   for name, f in pairs(formatters) do
+      formatter = f(name)
+      if formatter then
+         print('format: '..format..' not found, using '..name)
+         return formatter
+      end
+   end
+end
+
+
+local function text_processor(ldoc)
+   return function(txt,item)
+      if txt == nil then return '' end
+      -- hack to separate paragraphs with blank lines
+      txt = txt:gsub('\n\n','\n<p>')
+      return resolve_inline_references(ldoc, txt, item, true)
+   end
+end
+
+
+local function markdown_processor(ldoc, formatter)
+   return function (txt,item)
+      if txt == nil then return '' end
+      if utils.is_type(item,doc.File) then
+         txt = process_multiline_markdown(ldoc, txt, item)
+      else
+         txt = resolve_inline_references(ldoc, txt, item)
+      end
+      txt = formatter(txt)
+      -- We will add our own paragraph tags, if needed.
+      return (txt:gsub('^%s*<p>(.+)</p>%s*$','%1'))
+   end
+end
+
+
+local function get_processor(ldoc, format)
+   if format == 'plain' then return text_processor(ldoc) end
+
+   local formatter = get_formatter(format)
+   if formatter then
+      markup.plain = false
+      return markdown_processor(ldoc, formatter)
+   end
+
+   print('format: '..format..' not found, falling back to text')
+   return text_processor(ldoc)
+end
+
+
+function markup.create (ldoc, format, pretty)
    local processor
    markup.plain = true
    backtick_references = ldoc.backtick_references
    global_context = ldoc.package and ldoc.package .. '.'
+   prettify.set_prettifier(pretty)
 
    markup.process_reference = function(name)
+      if local_context == 'none.' and not name:match '%.' then
+         return nil,'not found'
+      end
       local mod = ldoc.single or ldoc.module or ldoc.modules[1]
       local ref,err = mod:process_see_reference(name, ldoc.modules)
       if ref then return ref end
@@ -195,38 +305,11 @@ function markup.create (ldoc, format)
       return ldoc.href(ref)
    end
 
-   if format == 'plain' then
-      processor = function(txt, item)
-         if txt == nil then return '' end
-         return resolve_inline_references(ldoc, txt, item, true)
-      end
-   else
-      local ok,formatter = pcall(require,format)
-      if not ok then
-         if format == 'discount' then
-            print('format: discount not found, using markdown')
-            ok,formatter = pcall(require,'markdown')
-         end
-         if not ok then
-            quit("cannot load formatter: "..format)
-         end
-      end
-      if backtick_references == nil then
-         backtick_references = true
-      end
-      markup.plain = false
-      processor = function (txt,item)
-         if txt == nil then return '' end
-         if utils.is_type(item,doc.File) then
-            txt = process_multiline_markdown(ldoc, txt, item)
-         else
-            txt = resolve_inline_references(ldoc, txt, item)
-         end
-         txt = formatter(txt)
-         -- We will add our own paragraph tags, if needed.
-         return (txt:gsub('^%s*<p>(.+)</p>%s*$','%1'))
-      end
+   processor = get_processor(ldoc, format)
+   if not markup.plain and backtick_references == nil then
+      backtick_references = true
    end
+
    markup.resolve_inline_references = function(txt, errfn)
       return resolve_inline_references(ldoc, txt, errfn, markup.plain)
    end
