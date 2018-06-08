@@ -18,7 +18,7 @@ For instance, it is not so married to the idea that Lua modules should be define
 Otherwise, the output is very similar, which is no accident since the HTML templates are
 based directly on LuaDoc. You can ship your own customized templates and style sheets with
 your [own project](http://nilnor.github.com/textui/docs/) (also see Graham Hannington's
-documentation for [Lua for z/OS](lua4z.com/doc/)). LDoc comes with three extra themes; 'pale'
+documentation for [Lua for z/OS](http://lua4z.com/doc/)). LDoc comes with three extra themes; 'pale'
 for those who like whitespace, 'one' for one-column output, and 'fixed' for a fixed navigation
 bar down the left side.
 
@@ -1275,6 +1275,12 @@ function tagged with a certain tag:
   - `no_space_before_args` set to `true` if you do not want a space between a function's name and its arguments.
   - `template_escape` overrides the usual '#' used for Lua code in templates.
 This needs to be changed if the output format is Markdown, for instance.
+  - `user_keywords` A list of keywords that will be marked in "prettified" code. Useful if
+you want to display your own functions in a special way. Each keyword may be styled differently
+(using CSS). Only works when `pretty` is set to 'lua' (the default).
+  - `postprocess_html` function that allows a last-minute modification to the produced HTML page.
+The arguments are the raw HTML that's intended to be written out (a string), and the module object.
+The string this function returns will be what's actually gets written out.
 
 _Available functions are:_
 

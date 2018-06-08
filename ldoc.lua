@@ -7,7 +7,7 @@
 --
 -- C/C++ support for Lua extensions is provided.
 --
--- Available from LuaRocks as 'ldoc' and as a [Zip file](http://stevedonovan.github.com/files/ldoc-1.4.2.zip)
+-- Available from LuaRocks as 'ldoc' and as a [Zip file](http://stevedonovan.github.com/files/ldoc-1.4.3.zip)
 --
 -- [Github Page](https://github.com/stevedonovan/ldoc)
 --
@@ -233,7 +233,8 @@ local ldoc_contents = {
    'no_return_or_parms','no_summary','full_description','backtick_references', 'custom_see_handler',
    'no_space_before_args','parse_extra','no_lua_ref','sort_modules','use_markdown_titles',
    'unqualified', 'custom_display_name_handler', 'kind_names', 'custom_references',
-   'dont_escape_underscore','global_lookup','prettify_files','convert_opt'
+   'dont_escape_underscore','global_lookup','prettify_files','convert_opt', 'user_keywords',
+   'postprocess_html',
 }
 ldoc_contents = tablex.makeset(ldoc_contents)
 
@@ -464,8 +465,8 @@ end
 
 if type(args.file) == 'table' then
    -- this can only be set from config file so we can assume config is already read
-   process_all_files(args.file)   
-   
+   process_all_files(args.file)
+
 elseif path.isdir(args.file) then
    -- use any configuration file we find, if not already specified
    if not config_dir then
@@ -480,9 +481,9 @@ elseif path.isdir(args.file) then
          end
       end
    end
-   
+
    process_all_files({args.file})
-   
+
 elseif path.isfile(args.file) then
    -- a single file may be accompanied by a config.ld in the same dir
    if not config_dir then
@@ -504,7 +505,7 @@ end
 -- (this also will initialize the code prettifier used)
 override ('format','plain')
 override 'pretty'
-ldoc.markup = markup.create(ldoc, args.format,args.pretty)
+ldoc.markup = markup.create(ldoc, args.format, args.pretty, ldoc.user_keywords)
 
 ------ 'Special' Project-level entities ---------------------------------------
 -- Examples and Topics do not contain code to be processed for doc comments.
@@ -528,7 +529,7 @@ local function add_special_project_entity (f,tags,process)
    return item, F
 end
 
-local function prettify_source_files(files,class,linemap) 
+local function prettify_source_files(files,class,linemap)
    local prettify = require 'ldoc.prettify'
 
    process_file_list (files, '*.*', function(f)
@@ -753,7 +754,7 @@ if builtin_style or builtin_template then
    local function tmpwrite (name)
       local ok,text = pcall(require,'ldoc.html.'..name:gsub('%.','_'))
       if not ok then
-         quit("cannot find builtin template "..name)
+         quit("cannot find builtin template "..name.." ("..text..")")
       end
       if not utils.writefile(path.join(tmpdir,name),text) then
          quit("cannot write to temp directory "..tmpdir)

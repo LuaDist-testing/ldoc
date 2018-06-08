@@ -1,10 +1,18 @@
-package = "ldoc"
-version = "1.4.3-1"
+-- This file was automatically generated for the LuaDist project.
 
+package = "ldoc"
+version = "1.4.4-1"
+
+-- LuaDist source
 source = {
-  dir = "ldoc",
-  url = "http://mysite.mweb.co.za/residents/sdonovan/ldoc-1.4.3.zip"
+  tag = "1.4.4-1",
+  url = "git://github.com/LuaDist-testing/ldoc.git"
 }
+-- Original source
+-- source = {
+--   dir = "ldoc",
+--   url = "http://stevedonovan.github.io/files/ldoc-1.4.4.zip"
+-- }
 
 description = {
   summary = "A Lua Documentation Tool",
@@ -38,6 +46,8 @@ build = {
     ["ldoc.html.ldoc_ltp"] = "ldoc/html/ldoc_ltp.lua",
     ["ldoc.html.ldoc_md_ltp"] = "ldoc/html/ldoc_md_ltp.lua",
     ["ldoc.html.ldoc_css"] = "ldoc/html/ldoc_css.lua",
+    ["ldoc.html._code_css"] = "ldoc/html/_code_css.lua",
+    ["ldoc.html._reset_css"] = "ldoc/html/_reset_css.lua",
     ["ldoc.html.ldoc_one_css"] = "ldoc/html/ldoc_one_css.lua",
     ["ldoc.html.ldoc_pale_css"] = "ldoc/html/ldoc_pale_css.lua",
     ["ldoc.html.ldoc_fixed_css"] = "ldoc/html/ldoc_fixed_css.lua",
@@ -61,4 +71,3 @@ build = {
     }
   }
 }
-
