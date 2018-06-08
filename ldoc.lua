@@ -35,7 +35,7 @@ app.require_here()
 
 --- @usage
 local usage = [[
-ldoc, a documentation generator for Lua, vs 1.3.10
+ldoc, a documentation generator for Lua, vs 1.3.11
   -d,--dir (default docs) output directory
   -o,--output  (default 'index') output name
   -v,--verbose          verbose
@@ -284,6 +284,13 @@ if args.file == '.' then
       args.file = abspath(args.file)
    end
 else
+   -- user-provided config file
+   if args.config ~= 'config.ld' then
+      local err
+      config_dir,err = read_ldoc_config(args.config)
+      if err then quit("no "..quote(args.config).." found") end
+   end
+   -- with user-provided file
    args.file = abspath(args.file)
 end
 
@@ -294,6 +301,7 @@ end
 if type(source_dir) == 'string' and path.isfile(source_dir) then
    source_dir = path.splitpath(source_dir)
 end
+source_dir = source_dir:gsub('[/\\]%.$','')
 
 ---------- specifying the package for inferring module names --------
 -- If you use module(...), or forget to explicitly use @module, then
