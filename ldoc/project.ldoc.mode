@@ -1,0 +1,5 @@
+extension=lua
+files=*.lua
+tab:
+	use=false
+	size=3

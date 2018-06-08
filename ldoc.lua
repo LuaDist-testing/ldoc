@@ -35,8 +35,8 @@ app.require_here()
 
 --- @usage
 local usage = [[
-ldoc, a documentation generator for Lua, vs 1.3.11
-  -d,--dir (default docs) output directory
+ldoc, a documentation generator for Lua, vs 1.3.12
+  -d,--dir (default doc) output directory
   -o,--output  (default 'index') output name
   -v,--verbose          verbose
   -a,--all              show local functions, etc, in docs
@@ -63,7 +63,8 @@ ldoc, a documentation generator for Lua, vs 1.3.11
   <file> (string) source file or directory containing source
 
   `ldoc .` reads options from an `config.ld` file in same directory;
-  `ldoc -c path/to/myconfig.ld .` reads options from `path/to/myconfig.ld`
+  `ldoc -c path/to/myconfig.ld <file>` reads options from `path/to/myconfig.ld`
+  and processes <file> if 'file' was not defined in the ld file.
 ]]
 local args = lapp(usage)
 local lfs = require 'lfs'
@@ -184,8 +185,9 @@ end
 local ldoc_contents = {
    'alias','add_language_extension','new_type','add_section', 'tparam_alias',
    'file','project','title','package','format','output','dir','ext', 'topics',
-   'one','style','template','description','examples', 'pretty', 'charset',
-   'readme','all','manual_url', 'ignore', 'colon','boilerplate','merge', 'wrap',
+   'one','style','template','description','examples', 'pretty', 'charset', 'plain',
+   'readme','all','manual_url', 'ignore', 'colon',
+   'boilerplate','merge', 'wrap', 'not_luadoc',
    'no_return_or_parms','no_summary','full_description','backtick_references', 'custom_see_handler',
 }
 ldoc_contents = tablex.makeset(ldoc_contents)
@@ -361,6 +363,7 @@ setup_package_base()
 
 override 'colon'
 override 'merge'
+override 'not_luadoc'
 
 if type(args.file) == 'table' then
    -- this can only be set from config file so we can assume it's already read

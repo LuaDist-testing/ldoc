@@ -115,10 +115,10 @@ function doc.expand_annotation_item (tags, last_item)
    if tags.summary ~= '' then return false end
    for tag, value in pairs(tags) do
       if known_tags._annotation_tags[tag] then
-         tags.class = 'annotation'
-         tags.summary = value
+         tags:add('class','annotation')
+         tags:add('summary',value)
          local item_name = last_item and last_item.tags.name or '?'
-         tags.name = item_name..'-'..tag..acount
+         tags:add('name',item_name..'-'..tag..acount)
          acount = acount + 1
          return true
       end
@@ -220,6 +220,10 @@ function File:finish()
                if mod then
                   print('found master module',mf)
                   this_mod = mod
+                  if this_mod.section then
+                     print '***closing section from master module***'
+                     this_mod.section = nil
+                  end
                   submodule = true
                end
             end
@@ -264,6 +268,7 @@ function File:finish()
          -- add the item to the module's item list
          if this_mod then
             -- new-style modules will have qualified names like 'mod.foo'
+            --require 'pl.pretty'.dump(item.tags)
             local mod,fname = split_dotted_name(item.name)
             -- warning for inferred unqualified names in new style modules
             -- (retired until we handle methods like Set:unset() properly)
@@ -315,7 +320,7 @@ function File:finish()
                      end
                   end
                end
-               section_description = this_section.summary..' '..this_section.description
+               section_description = this_section.summary..' '..(this_section.description or '')
             elseif item.tags.within then
                section_description = item.tags.within
                item.section = section_description
@@ -384,14 +389,21 @@ function Item:add_to_description (rest)
    end
 end
 
+function Item:trailing_warning (kind,tag,rest)
+   if type(rest)=='string' and #rest > 0 then
+      Item.warning(self,kind.." tag: '"..tag..'" has trailing text; use no_luadoc=true\n'..rest)
+   end
+end
+
 function Item:set_tag (tag,value)
    local ttype = known_tags[tag]
+   local args = self.file.args
 
    if ttype == TAG_MULTI or ttype == TAG_MULTI_LINE then -- value is always a List!
       if getmetatable(value) ~= List then
          value = List{value}
       end
-      if ttype ~= TAG_MULTI_LINE then
+      if ttype ~= TAG_MULTI_LINE and args and args.not_luadoc then
          local last = value[#value]
          if type(last) == 'string' and last:match '\n' then
             local line,rest = last:match('([^\n]+)(.*)')
@@ -410,14 +422,23 @@ function Item:set_tag (tag,value)
          value = value[1]
          modifiers = value.modifiers
       end
+      if value == nil then self:error("Tag without value: "..tag) end
       local id, rest = tools.extract_identifier(value)
       self.tags[tag] = id
-      self:add_to_description(rest)
+      if args and args.not_luadoc then
+         self:add_to_description(rest)
+      else
+         self:trailing_warning('id',tag,rest)
+      end
    elseif ttype == TAG_SINGLE then
       self.tags[tag] = value
    elseif ttype == TAG_FLAG then
       self.tags[tag] = true
-      self:add_to_description(value)
+      if args.not_luadoc then
+         self:add_to_description(value)
+      else
+         self:trailing_warning('flag',tag,value)
+      end
    else
       Item.warning(self,"unknown tag: '"..tag.."' "..tostring(ttype))
    end
@@ -742,7 +763,6 @@ function Item:error(msg)
 end
 
 Module.warning, Module.error = Item.warning, Item.error
-
 
 -------- Resolving References -----------------
 

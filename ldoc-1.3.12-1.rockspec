@@ -1,17 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "ldoc"
-version = "1.3.11-1"
+version = "1.3.12-1"
 
 -- LuaDist source
 source = {
-  tag = "1.3.11-1",
+  tag = "1.3.12-1",
   url = "git://github.com/LuaDist-testing/ldoc.git"
 }
 -- Original source
 -- source = {
 --   dir="ldoc",
---   url = "http://stevedonovan.github.com/files/ldoc-1.3.11.zip"
+--   url = "http://stevedonovan.github.com/files/ldoc-1.3.12.zip"
 -- }
 
 description = {
@@ -59,12 +59,10 @@ build = {
     ["ldoc.builtin.string"] = "ldoc/builtin/string.lua",
     ["ldoc.builtin.table"] = "ldoc/builtin/table.lua",
   },
-  copy_directories = {
-    "tests","doc"
-  },
   install = {
     bin = {
       ldoc = "ldoc.lua"
     }
   }
 }
+
