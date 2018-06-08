@@ -14,7 +14,6 @@ local M = tools
 local append = table.insert
 local lexer = require 'ldoc.lexer'
 local quit = utils.quit
-local lfs = require 'lfs'
 
 -- at rendering time, can access the ldoc table from any module item,
 -- or the item itself if it's a module
@@ -225,7 +224,9 @@ end
 
 function M.check_directory(d)
    if not path.isdir(d) then
-      lfs.mkdir(d)
+      if not dir.makepath(d) then
+         quit("Could not create "..d.." directory")
+      end
    end
 end
 
@@ -242,8 +243,11 @@ function M.check_file (f,original)
 end
 
 function M.writefile(name,text)
-   local ok,err = utils.writefile(name,text)
+   local f,err = io.open(name,"wb")
+--~    local ok,err = utils.writefile(name,text)
    if err then quit(err) end
+   f:write(text)
+   f:close()
 end
 
 function M.name_of (lpath)
@@ -336,7 +340,12 @@ function M.get_parameters (tok,endtoken,delim,lang)
          return text:match("%s*%-%-+%s*(.*)")
       end
       extract_arg = function(tl,idx)
-         return value_of(tl[idx or 1])
+         idx = idx or 1
+         local res = value_of(tl[idx])
+         if res == '[' then -- we do allow array indices in tables now
+            res = '['..value_of(tl[idx + 1])..']'
+         end
+         return res
       end
    end
 

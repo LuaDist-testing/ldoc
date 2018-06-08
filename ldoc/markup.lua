@@ -90,6 +90,8 @@ function markup.add_sections(F, txt)
       end
       local title = line:match (title_pat)
       if title then
+         --- Windows line endings are the cockroaches of text
+         title = title:gsub('\r$','')
          -- Markdown allows trailing '#'...
          title = title:gsub('%s*#+$','')
          sections[L] = F:add_document_section(lstrip(title))
@@ -169,6 +171,7 @@ local function process_multiline_markdown(ldoc, txt, F, filename, deflang)
          end
          pretty_code (code,fence)
          line = getline() -- skip fence
+         if not line then break end
       end
       indent, line = indent_line(line)
       if indent >= 4 then -- indented code block
@@ -231,7 +234,39 @@ local formatters =
       end
       return ok and markdown
    end,
-   discount = generic_formatter,
+   discount = function(format)
+      local ok, markdown = pcall(require, 'discount')
+      if ok then
+         if 'function' == type(markdown) then
+            -- lua-discount by A.S. Bradbury, https://luarocks.org/modules/luarocks/lua-discount
+         elseif 'table' == type(markdown) and ('function' == type(markdown.compile) or 'function' == type(markdown.to_html)) then
+            -- discount by Craig Barnes, https://luarocks.org/modules/craigb/discount
+            -- result of apt-get install lua-discount (links against libmarkdown2)
+            local mysterious_debian_variant = markdown.to_html ~= nil
+            markdown = markdown.compile or markdown.to_html
+            return function(text)
+               local result, errmsg = markdown(text)
+               if result then
+                  if mysterious_debian_variant then
+                     return result
+                  else
+                     return result.body
+                  end
+               else
+                  io.stderr:write('LDoc discount failed with error ',errmsg)
+                  io.exit(1)
+               end
+            end
+         else
+            ok = false
+         end
+      end
+      if not ok then
+         print('format: using built-in markdown')
+         ok, markdown = pcall(require, 'ldoc.markdown')
+      end
+      return ok and markdown
+   end,
    lunamark = function(format)
       local ok, lunamark = pcall(require, format)
       if ok then

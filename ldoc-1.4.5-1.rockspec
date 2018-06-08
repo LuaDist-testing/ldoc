@@ -1,10 +1,18 @@
-package = "ldoc"
-version = "1.3.8-2"
+-- This file was automatically generated for the LuaDist project.
 
+package = "ldoc"
+version = "1.4.5-1"
+
+-- LuaDist source
 source = {
-  dir="ldoc",
-  url = "http://stevedonovan.github.com/files/ldoc-1.3.8.zip"
+  tag = "1.4.5-1",
+  url = "git://github.com/LuaDist-testing/ldoc.git"
 }
+-- Original source
+-- source = {
+--   dir = "ldoc",
+--   url = "http://stevedonovan.github.io/files/ldoc-1.4.5.zip"
+-- }
 
 description = {
   summary = "A Lua Documentation Tool",
@@ -18,7 +26,6 @@ description = {
   maintainer='steve.j.donovan@gmail.com',
   license = "MIT/X11",
 }
-
 
 dependencies = {
   "penlight","markdown"
@@ -34,10 +41,16 @@ build = {
     ["ldoc.lexer"] = "ldoc/lexer.lua",
     ["ldoc.markup"] = "ldoc/markup.lua",
     ["ldoc.prettify"] = "ldoc/prettify.lua",
+    ["ldoc.markdown"] = "ldoc/markdown.lua",
     ["ldoc.doc"] = "ldoc/doc.lua",
-    ["ldoc.html.ldoc_css"] = "ldoc/html/ldoc_css.lua",
     ["ldoc.html.ldoc_ltp"] = "ldoc/html/ldoc_ltp.lua",
+    ["ldoc.html.ldoc_md_ltp"] = "ldoc/html/ldoc_md_ltp.lua",
+    ["ldoc.html.ldoc_css"] = "ldoc/html/ldoc_css.lua",
+    ["ldoc.html._code_css"] = "ldoc/html/_code_css.lua",
+    ["ldoc.html._reset_css"] = "ldoc/html/_reset_css.lua",
     ["ldoc.html.ldoc_one_css"] = "ldoc/html/ldoc_one_css.lua",
+    ["ldoc.html.ldoc_pale_css"] = "ldoc/html/ldoc_pale_css.lua",
+    ["ldoc.html.ldoc_fixed_css"] = "ldoc/html/ldoc_fixed_css.lua",
     ["ldoc.builtin.globals"] = "ldoc/builtin/globals.lua",
     ["ldoc.builtin.coroutine"] = "ldoc/builtin/coroutine.lua",
     ["ldoc.builtin.global"] = "ldoc/builtin/global.lua",
@@ -51,11 +64,10 @@ build = {
     ["ldoc.builtin.string"] = "ldoc/builtin/string.lua",
     ["ldoc.builtin.table"] = "ldoc/builtin/table.lua",
   },
+  copy_directories = {'doc','tests'},
   install = {
     bin = {
-      "ldoc.lua"
+      ldoc = "ldoc.lua"
     }
   }
 }
-
-
