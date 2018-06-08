@@ -1,5 +1,2 @@
-extension=lua
-files=*.lua
-tab:
-	use=false
-	size=3
+mode=lua
+tabs=use=false,size=3

@@ -4,12 +4,13 @@
 
 ## Introduction
 
-LDoc is a second-generation documentation tool that can be used as a replacement for
-[LuaDoc](http://keplerproject.github.com/luadoc/). It arose out of my need to document my
-own projects and only depends on the [Penlight](https://github.com/stevedonovan/Penlight)
-libraries.
+LDoc is a software documentation tool which automatically generates API documentation
+out of source code comments (doc comments). It is mainly targeted at Lua and documenting
+Lua APIs, but it can also parse C with according doc comments for documenting Lua modules
+implemented in C.
 
-It is mostly compatible with LuaDoc, except that certain workarounds are no longer needed.
+It is mostly compatible with [LuaDoc](http://keplerproject.github.com/luadoc/),
+except that certain workarounds are no longer needed.
 For instance, it is not so married to the idea that Lua modules should be defined using the
 `module` function; this is not only a matter of taste since this has been deprecated in Lua
 5.2.
@@ -32,7 +33,10 @@ end-users to build your documentation using this simple command.
 
 ## Commenting Conventions
 
-LDoc follows the conventions established by Javadoc and later by LuaDoc.
+LDoc follows the conventions established by Javadoc and later by LuaDoc to document the
+modules, functions, tables and types ("classes") of your API.
+
+### Doc comments
 
 Only 'doc comments' are parsed; these can be started with at least 3 hyphens, or by a empty
 comment line with at least 3 hypens:
@@ -55,12 +59,78 @@ Any module or script must start with a doc comment; any other files are ignored 
 warning issued. The only exception is if the module starts with an explicit `module`
 statement.
 
+If your coding standards require a boilerplate copyright notice, then the `-B` flag or
+`boilerplate=true` will make LDoc ignore the first comment of each module.
+
+Common commenting patterns like '---- (text) -----' are exempted, since they are often used
+for programmer-facing documentation.
+
+
+### Tags
+
 All doc comments start with a summary sentence, that ends with a period or a question mark.
 An optional description may follow. Normally the summary sentence will appear in the module
 contents.
 
-After this descriptive text, there will typically be _tags_. These follow the convention
-established by Javadoc and widely used in tools for other languages.
+After this descriptive text, there will typically be _tags_ which are introduced with an @.
+These follow the convention established by Javadoc and widely used in tools for other languages.
+
+    --- Some doc comment
+    -- @tag1 parameters for first tag
+    -- @tag2 parameters for the second tag
+
+The order of tags is not important, but as always, consistency is useful.
+
+Here are all the tags known to LDoc:
+
+  * **@module**  A Lua module containing functions and tables, which may be inside sections
+  * **@classmod** Like **@module** but describing a class
+  * **@submodule** A file containing definitions that you wish to put into the named _master_ module
+  * **@script**  A Lua program
+  * **@author** (multiple), **copyright**, **@license**, **@release** only used for _project-level_ tags like **@module**
+  * **@function**, **@lfunction**. Functions inside a module
+  * **@param**  formal arguments of a function (multiple)
+  * **@return** returned values of a function (multiple)
+  * **@raise** unhandled error thrown by this function
+  * **@local** explicitly marks a function as not being exported (unless `--all`)
+  * **@see** reference other documented items
+  * **@usage** give an example of a function's use. (Has a somewhat different meaning when used
+   with **@module**)
+  * **@table** a Lua table
+  * **@field** a named member of a table
+  * **@section** starting a named section for grouping functions or tables together
+  * **@type** a section which describes a class
+  * **@within** puts the function or table into an implicit section
+  * **@fixme**, **@todo** and **@warning** are _annotations_, which are doc comments that
+  occur inside a function body.
+
+The first important tag to know is the module tag:
+
+#### Modules: naming and describing your API module
+
+The first thing in your API module should be a name and a description.
+This is how a module is commonly done in Lua 5.2 with a **@module** tag at the top
+which introduces the name:
+
+    --- a test module
+    -- @module test
+
+    local test = {}
+
+    function test.my_module_function_1()
+        ...
+    end
+
+    ...
+
+    return test
+
+This sets up a module named 'test' with the description 'a test module'.
+
+#### Functions
+
+The next thing to describe are the functions your module has.
+This is a simple example of a documented function:
 
     --- foo explodes text.
     -- It is a specialized splitting operation on a string.
@@ -70,16 +140,36 @@ established by Javadoc and widely used in tools for other languages.
     ....
     end
 
-There are also 'tparam' and 'treturn' which let you [specify a type](#Tag_Modifiers):
+You can also give the function name itself as an explicit tag,
+which is especially useful when documenting a Lua api exported by C code:
 
-    -- @tparam string text the string
+    /// A C function which is exported to Lua with another name,
+    // because the ways of C can be mysterious!
+    // @function our_nice_function
+    int _some_function_for_lua(lua_State* l) {
+        ....
+    }
+
+The tags basically add all the detail that cannot be derived from the source code
+automatically.
+
+#### Function parameters and return values
+
+Common tags are the 'param' tag which takes a parameter name followed by a parameter
+description separated by a space, and the 'return' tag which is simply followed by
+a description for a return value:
+
+    -- @param name_of_parameter the description of this parameter as verbose text
+    -- @return the description of the return value
+
+If you want to [specify a type](#Tag_Modifiers) for a parameter or a return value,
+there are also 'tparam' and 'treturn':
+
+    -- @tparam string text this parameter is named 'text' and has the fixed type 'string'
     -- @treturn {string,...} a table of substrings
 
 There may be multiple 'param' tags, which should document each formal parameter of the
 function. For Lua, there can also be multiple 'return' tags
-
-    --- solvers for common equations.
-    module("solvers", package.seeall)
 
     --- solve a quadratic equation.
     -- @param a first coeff
@@ -99,68 +189,9 @@ function. For Lua, there can also be multiple 'return' tags
     end
 
     ...
+Of course there is also the 'module' tag which you have already seen.
 
-This is the common module style used in Lua 5.1, but it's increasingly common to see less
-'magic' ways of creating modules in Lua. Since `module` is deprecated in Lua 5.2, any
-future-proof documentation tool needs to handle these styles gracefully:
-
-    --- a test module
-    -- @module test
-
-    local test = {}
-
-    --- first test.
-    function test.one()
-    ...
-    end
-
-    ...
-
-    return test
-
-Here the name of the module is explicitly given using the 'module' tag. If you leave this
-out, then LDoc will infer the name of the module from the name of the file and its relative
-location in the filesystem; this logic is also used for the `module(...)` idiom. (How this
-works and when you need to provide extra information is discussed later.)
-
-It is common to use a local name for a module when declaring its contents. In this case the
-'alias' tag can tell LDoc that these functions do belong to the module:
-
-    --- another test.
-    -- @module test2
-    -- @alias M
-
-    local M = {}
-
-    -- first test.
-    function M.one()
-    ..
-    end
-
-    return M
-
-`M` and `_M` are used commonly enough that LDoc will recognize them as aliases
-automatically, but 'alias' allows you to use any identifier.
-
-LDoc tries to deduce the function name and the formal parameter names from examining the
-code after the doc comment. It also recognizes the 'unsugared' way of defining functions as
-explicit assignment to a variable:
-
-    --- second test.
-    M.two = function(...) ... end
-
-Apart from exported functions, a module usually contains local functions. By default, LDoc
-does not include these in the documentation, but they can be enabled using the `--all` flag.
-They can be documented just like 'public' functions:
-
-    --- it's clear that boo is local from context.
-    local function boo(...) .. end
-
-    local foo
-
-    --- we need to give a hint here for foo
-    -- @local here
-    function foo(...) .. end
+#### Tables and constant values (fields)
 
 Modules can of course export tables and other values. The classic way to document a table
 looks like this:
@@ -194,16 +225,104 @@ Another kind of module-level type is 'field', such as follows:
 
 That is, a module may contain exported functions, local functions, tables and fields.
 
+#### Explicitly specifying a function or fields
+
 When the code analysis would lead to the wrong type, you can always be explicit.
 
-    --- module contents.
+    --- module contents with explicitly documented field _CONTENTS.
     -- @field _CONTENTS
     M._CONTENTS = {constants=true,one=true,...}
 
-The order of tags is not important, but as always, consistency is useful.  Tags like 'param'
-and 'return' can be specified multiple times, whereas a type tag like 'function' can only
-occur once in a comment. The basic rule is that a single doc comment can only document one
-entity.
+    --- an explicitly named function.
+    -- @function my_function
+    function my_function()
+        ...
+    end
+
+As mentioned before, this is often especially useful in C where things
+may look different in the C code than they will in the final Lua api which
+you want to document.
+
+### Doing modules the Lua 5.1 way
+
+As an alternative to using the 'module' tag as described before, you
+can still start your modules the Lua 5.1 way:
+
+    --- solvers for common equations.
+    module("solvers", package.seeall)
+
+However, the 'module' function is deprecated in Lua 5.2 and it is increasingly
+common to see less 'magic' ways of creating modules, as seen in the description
+of the 'module' tag previously with the explicitely returned module table.
+
+#### Repeating tags
+
+Tags like 'param' and 'return' can be specified multiple times, whereas a type
+tag like 'function' can only occur once in a comment.
+
+The basic rule is that a single doc comment can only document one entity.
+
+### Local module name
+
+It is common to use a local name for a module when declaring its contents. In this case the
+'alias' tag can tell LDoc that these functions do belong to the module:
+
+    --- another test.
+    -- @module test2
+    -- @alias M
+
+    local M = {}
+
+    -- first test.
+    function M.one()
+    ..
+    end
+
+    return M
+
+`M` and `_M` are used commonly enough that LDoc will recognize them as aliases
+automatically, but 'alias' allows you to use any identifier.
+
+LDoc tries to deduce the function name and the formal parameter names from examining the
+code after the doc comment. It also recognizes the 'unsugared' way of defining functions as
+explicit assignment to a variable:
+
+    --- second test.
+    M.two = function(...) ... end
+
+### Local functions
+
+Apart from exported functions, a module usually contains local functions. By default, LDoc
+does not include these in the documentation, but they can be enabled using the `--all` flag.
+They can be documented just like 'public' functions:
+
+    --- it's clear that boo is local from context.
+    local function boo(...) .. end
+
+    local foo
+
+    --- we need to give a hint here for foo
+    -- @local here
+    function foo(...) .. end
+
+### Alternative way of specifying tags
+
+Since 1.3, LDoc allows the use of _colons_ instead of @.
+
+    --- a simple function.
+    -- string name person's name
+    -- int: age age of person
+    -- !person: person object
+    -- treturn: ?string
+    -- function check(name,age)
+
+However, you must either use the `--colon` flag or set `colon=true` in your `config.ld`.
+
+In this style, types may be used directly if prefixed with '!' or '?' (for type-or-nil)
+
+(see @{colon.lua}, rendered [here](http://stevedonovan.github.io/ldoc/examples/colon))
+
+### Which files are processed
 
 By default, LDoc will process any file ending in '.lua' or '.luadoc' in a specified
 directory; you may point it to a single file as well. A 'project' usually consists of many
@@ -214,12 +333,18 @@ If only one module or script is documented for a project, then the `index.html` 
 contains the documentation for that module, since an index pointing to one module would be
 redundant.
 
-(If you want to document a script, there is a project-level type 'script' for that.)
+LDoc has a two-layer hierarchy; underneath the project, there are modules, scripts, classes
+(containing code) and examples and 'topics' (containing documentation). These then contain
+items like functions, tables, sections, and so forth.
+
+If you want to document scripts, then use **@script** instead of **@module**. New with 1.4 is
+**@classmod** which is a module which exports a single class.
+
 
 ## See References
 
-The tag 'see' is used to reference other parts of the documentation, and 'usage' can provide
-examples of use:
+**@see** is used to reference other parts of the documentation, and **@usage** can provide
+examples of use; there can be multiple such tags:
 
     ---------
     -- split a string in two.
@@ -235,9 +360,9 @@ Here it's assumed that 'split' is a function defined in the same module. If you 
 to a function in another module, then the reference has to be qualified.
 
 References to methods use a colon: `myclass:method`; this is for instance how you would
-refer to members of a `@type` section.
+refer to members of a **@type** section.
 
-The example at `tests/complex` shows how @see references are interpreted:
+The example at `tests/complex` shows how **@see** references are interpreted:
 
     complex.util.parse
     complex.convert.basic
@@ -257,36 +382,38 @@ If a reference is not found within the project, LDoc checks to see if it is a re
 Lua standard function or table, and links to the online Lua manual. So references like
 'table.concat' are handled sensibly.
 
-References may be made inline using the @\{ref} syntax. This may appear anywhere in the
-text, and is more flexible than @see. In particular, it provides one way to document the
+References may be made inline using the `@{\ref}` syntax. This may appear anywhere in the
+text, and is more flexible than **@see**. In particular, it provides one way to document the
 type of a parameter or return value when that type has a particular structure:
 
     ------
     -- extract standard variables.
     -- @param s the string
-    -- @return @\{stdvars}
+    -- @return @{\stdvars}
     function extract_std(s) ... end
 
     ------
     -- standard variables.
-    -- Use @\{extract_std} to parse a string containing variables,
-    -- and @\{pack_std} to make such a string.
+    -- Use @{\extract_std} to parse a string containing variables,
+    -- and @{\pack_std} to make such a string.
     -- @field length
     -- @field duration
     -- @field viscosity
     -- @table stdvars
 
-@\{ref} is very useful for referencing your API from code samples and readme text. (I've had
-to throw in a spurious backspace to stop expansion in this example.)
+`@{\ref}` is very useful for referencing your API from code samples and readme text.
 
-The link text can be changed from the default by the extended syntax @\{ref|text}.
+The link text can be changed from the default by the extended syntax `@{\ref|text}.
 
 You can also put references in backticks, like `\`stdvars\``. This is commonly used in
 Markdown to indicate code, so it comes naturally when writing documents. It is controlled by
-the configuration variable `backtick_references`; the default is `true` if you use Markdown
-in your project, but can be specified explicitly in your `config.ld`.
+the configuration variable `backtick_references` or the `backtick` format;
+the default is `true` if you use Markdown in your project, but can be specified explicitly
+in `config.ld`.
 
-### Custom @see References
+To quote such references so they won't be expanded, say @{\\ref}.
+
+#### Custom @see References
 
 It's useful to define how to handle references external to a project. For instance, in the
 [luaposix](https://github.com/luaposix/luaposix) project we wanted to have `man` references
@@ -305,26 +432,65 @@ online references to the Linux manpages. So in `config.ld` we have:
 
     local upat = "http://www.kernel.org/doc/man-pages/online/pages/man%s/%s.%s.html"
 
-    custom_see_handler('^(%a+)%((%d)%)$',function(name,section)
+    custom_see_handler('^([%w_]+)%((%d)%)$',function(name,section)
         local url = upat:format(section,name,section)
         local name = name .. '(' ..section..')'
         return name, url
     end)
 
-'^(%a+)%((%d)%)$' both matches the pattern and extracts the name and its section. THen it's
+`^([%w_]+)%((%d)%)$` both matches the pattern and extracts the name and its section. Then it's
 a simple matter of building up the appropriate URL.  The function is expected to
 return _link text_ and _link source_ and the patterns are checked before LDoc tries to resolve
 project references. So it is best to make them match as exactly as possible.
 
+## Module Tags
+
+LDoc requires you to have a module doc comment. If your code style requires
+license blocks that might look like doc comments, then set `boilerplate=true` in your
+configuration and they will be skipped.
+
+This comment does not have to have an explicit **@module** tag and LDoc continues to
+respect the use of `module()`.
+
+There are three types of 'modules' (i.e. 'project-level'); `module`, a library
+loadable with `require()`, `script`, a program, and `classmod` which is a class
+implemented in a single module.
+
+There are some tags which are only useful in module comments: `author`,`copyright`,
+`license` and `release`. These are presented in a special **Info** section in the
+default HTML output.
+
+The **@usage** tag has a somewhat different presentation when used in modules; the text
+is presented formatted as-is in a code font. If you look at the script `ldoc` in
+this documentation, you can see how the command-line usage is shown. Since coding
+is all about avoiding repetition and the out-of-sync issues that arise,
+the **@usage** tag can appear later in the module, before a long string. For instance,
+the main script of LDoc is [ldoc.lua](https://github.com/stevedonovan/LDoc/blob/master/ldoc.lua)
+and you will see that the usage tag appears on line 36 before the usage string
+presented as help.
+
+**@export** is another module tag that is usually 'detached'. It is for supporting
+modules that wish to explicitly export their functions @{three.lua|at the end}.
+In that example, both `question` and `answer` are local and therefore private to
+the module, but `answer` has been explicitly exported. (If you invoke LDoc with
+the `-a` flag on this file, you will see the documentation for the unexported
+function as well.)
+
+**@set** is a powerful tag which assigns a configuration variable to a value _just for this module_.
+Saying `@set no_summary=true` in a module comment will temporarily disable summary generation when
+the template is expanded. Generally configuration variables that effect template expansion
+are modifiable in this way.  For instance, if you wish that the contents of a particular module
+be sorted, then `@set sort=true` will do it _just_ for that module.
+
 ## Sections
 
-LDoc supports _explicit_ sections. By default, the sections correspond to the pre-existing
+LDoc supports _explicit_ sections. By default, the implicit sections correspond to the pre-existing
 types in a module: 'Functions', 'Tables' and 'Fields' (There is another default section
 'Local Functions' which only appears if LDoc is invoked with the `--all` flag.) But new
-sections can be added; the first mechanism is when you define a new type (say 'macro') a new
-section ('Macros') is created to contain these types. There is also a way to declare ad-hoc
-sections using the `@section` tag.
+sections can be added; the first mechanism is when you @{Adding_new_Tags|define a new type}
+(say 'macro'). Then a new section ('Macros') is created to contain these types.
 
+There is also a way to declare ad-hoc sections using the **@section** tag.
 The need occurs when a module has a lot of functions that need to be put into logical
 sections.
 
@@ -346,9 +512,9 @@ sections.
 
 A section doc-comment has the same structure as a normal doc-comment; the summary is used as
 the new section title, and the description will be output at the start of the function
-details for that section.
+details for that section; the name is not used, but must be unique.
 
-In any case, sections appear under 'Contents' on the left-hand side. See the
+Sections appear under 'Contents' on the left-hand side. See the
 [winapi](http://stevedonovan.github.com/winapi/api.html) documentation for an example of how
 this looks.
 
@@ -369,17 +535,22 @@ A specialized kind of section is `type`: it is used for documenting classes. The
     end
 
 (In an ideal world, we would use the word 'class' instead of 'type', but this would conflict
-with the LuaDoc usage.)
+with the LuaDoc `class` tag.)
 
 A section continues until the next section is found, `@section end`, or end of file.
 
-You can put items into an implicit section using the @within tag. This allows you to put
+You can put items into an implicit section using **@within**. This allows you to put
 adjacent functions in different sections, so that you are not forced to order your code
 in a particular way.
 
-Sometimes a module may logically span several files. There will be a master module with name
+With 1.4, there is another option for documenting classes, which is the top-level type
+`classmod`. It is intended for larger classes which are implemented within one module,
+and the advantage that methods can be put into sections.
+
+Sometimes a module may logically span several files, which can easily happen with large
+There will be a master module with name
 'foo' and other files which when required add functions to that module. If these files have
-a @submodule tag, their contents will be placed in the master module documentation. However,
+a **@submodule** tag, their contents will be placed in the master module documentation. However,
 a current limitation is that the master module must be processed before the submodules.
 
 See the `tests/submodule` example for how this works in practice.
@@ -396,6 +567,8 @@ One added convenience is that it is easier to name entities:
     -- @class module
     -- @name simple
 
+becomes:
+
     ------------
     -- a simple module.
     -- (LDoc)
@@ -409,38 +582,10 @@ can define an alias for it, such as 'p'. This can also be specified in the confi
 LDoc will also work with C/C++ files, since extension writers clearly have the same
 documentation needs as Lua module writers.
 
-LDoc allows you to attach a _type_ to a parameter or return value
-
-    --- better mangler.
-    -- @tparam string name
-    -- @int max length
-    -- @treturn string mangled name
-    function strmangler(name,max)
-    ...
-    end
-
-`int` here is short for `tparam int` (see @{Tag_Modifiers})
-
-It's common for types to be optional, or have different types, so the type can be like
-'?int|string' which renders as '(int or string)', or '?int', which renders as
-'(optional int)'.
-
-LDoc gives the documenter the option to use Markdown to parse the contents of comments.
-
-Since 1.3, LDoc allows the use of _colons_ instead of @.
-
-    --- a simple function.
-    -- string name person's name
-    -- int: age age of person
-    -- !person: person object
-    -- treturn: ?string
-    -- function check(name,age)
-
-However, you must either use the `--colon` flag or set `colon=true` in your `config.ld`.
-
-In this style, types may be used directly if prefixed with '!' or '?' (for type-or-nil)
-
-(see `tests/styles/colon.lua`)
+LDoc allows you to attach a _type_ to a parameter or return value with `tparam` or `treturn`,
+and gives the documenter the option to use Markdown to parse the contents of comments.
+You may also include code examples which will be prettified, and readme files which will be
+rendered with Markdown and contain prettified code blocks.
 
 ## Adding new Tags
 
@@ -535,16 +680,17 @@ As always, explicit tags can override this behaviour if it is inappropriate.
 
 LDoc can process C/C++ files:
 
-    @plain
-    /***
-    Create a table with given array and hash slots.
-    @function createtable
-    @param narr initial array slots, default 0
-    @param nrec initial hash slots, default 0
-    @return the new table
-    */
-    static int l_createtable (lua_State *L) {
-    ....
+```c
+/***
+Create a table with given array and hash slots.
+@function createtable
+@param narr initial array slots, default 0
+@param nrec initial hash slots, default 0
+@return the new table
+*/
+static int l_createtable (lua_State *L) {
+....
+```
 
 Both `/**` and `///` are recognized as starting a comment block. Otherwise, the tags are
 processed in exactly the same way. It is necessary to specify that this is a function with a
@@ -557,9 +703,16 @@ or 'lua'.)
 
 An LDoc feature which is particularly useful for C extensions is _module merging_. If several
 files are all marked as `@module lib` then a single module `lib` is generated, containing all
-the docs from the separate files.
+the docs from the separate files. For this, use `merge=true`.
 
-See 'tests/examples/mylib.c' for the full example.
+See @{mylib.c} for the full example.
+
+## Moonscript Support
+
+1.4 introduces basic support for [Moonscript](http://moonscript.org). Moonscript module
+conventions are just the same as Lua, except for an explicit class construct.
+@{list.moon} shows how **@classmod** can declare modules that export one class, with metamethods
+and methods put implicitly into a separate section.
 
 ## Basic Usage
 
@@ -624,12 +777,16 @@ more features than the pure Lua version, such as PHP-Extra style tables.
   - [lunamark](http://jgm.github.com/lunamark/), another pure Lua processor,  faster than
 markdown, and with extra features (`luarocks install lunamark`).
 
-You can request the processor you like with `format = 'markdown|discount|lunamark'`, and
+You can request the processor you like with `format = 'markdown|discount|lunamark|plain|backticks'`, and
 LDoc will attempt to use it.  If it can't find it, it will look for one of the other
-markdown processors.
+markdown processors; the original `markdown.lua` ships with LDoc, although it's slow
+for larger documents.
 
 Even with the default of 'plain' some minimal processing takes place, in particular empty lines
-are treated as line breaks.
+are treated as line breaks. If the 'backticks' formatter is used, then it's equivalent to
+using 'process_backticks=true` in `config.ld` and backticks will be
+expanded into documentation links like `@{\ref}` and converted into `<code>ref</code>`
+otherwise.
 
 This formatting applies to all of a project, including any readmes and so forth. You may want
 Markdown for this 'narrative' documentation, but not for your code comments. `plain=true` will
@@ -745,24 +902,25 @@ module that uses extended LDoc features.
 
 The _navigation section_ down the left has several parts:
 
-  - The project name ('project' in the config)
-  - A project description ('description')
-  - ''Contents'' of the current page
-  - ''Modules'' listing all the modules in this project
+  - The project name (`project` in the config)
+  - A project description (`description`)
+  - **Contents** of the current page
+  - **Modules** listing all the modules in this project
 
 Note that `description` will be passed through Markdown, if it has been specified for the
 project. This gives you an opportunity to make lists of links, etc; any '##' headers will be
 formatted like the other top-level items on the navigation bar.
 
-'Contents' is automatically generated. It will contain any explicit sections, if they have
-been used. Otherwise you will get the usual categories: 'Functions', 'Tables' and 'Fields'.
+**Contents** is automatically generated. It will contain any explicit sections
+as well as the usual categories: 'Functions', 'Tables' and 'Fields'.  For a documentation page,
+the subtitles become the sections shown here.
 
-'Modules' will appear for any project providing Lua libraries; there may also be a 'Scripts'
+**Modules** will appear for any project providing Lua libraries; there may also be a 'Scripts'
 section if the project contains Lua scripts. For example,
 [LuaMacro](http://stevedonovan.github.com/LuaMacro/docs/api.html) has a driver script `luam`
 in this section. The
 [builtin](http://stevedonovan.github.com/LuaMacro/docs/modules/macro.builtin.html) module
-only defines macros, which are defined as a _custom tag type_.
+only defines macros, which are defined as a _custom tag type[?]_.
 
 The _content section_ on the right shows:
 
@@ -778,12 +936,19 @@ description. There are then sections for the following tags: 'param', 'usage', '
 'see' in that order. (For tables, 'Fields' is used instead of 'Parameters' but internally
 fields of a table are stored as the 'param' tag.)
 
+By default, the items appear in the order of declaration within their section. If `sort=true`
+then they will be sorted alphabetically. (This can be set per-module with @{Module_Tags|@set}.)
+
 You can of course customize the default template, but there are some parameters that can
-control what the template will generate. Setting `one` to `true` in your configuration file
+control what the template will generate. Setting `one=true` in your configuration file
 will give a _one-column_ layout, which can be easier to use as a programming reference.  You
 can suppress the contents summary with `no_summary`.
 
 ## Customizing the Page
+
+A basic customization is to override the default UTF-8 encoding using `charset`. For instance,
+Brazillian software would find it useful to put `charset='ISO-8859-1'` in `config.ld`, or use
+the **@charset** tag for individual files.
 
 Setting `no_return_or_parms` to `true` will suppress the display of 'param' and 'return'
 tags. This may appeal to programmers who dislike the traditional @tag soup xDoc style and
@@ -811,7 +976,6 @@ to the original:
     no_return_or_parms = true
     format = 'discount'
 
-
 Generally, using Markdown gives you the opportunity to structure your documentation in any
 way you want; particularly if using lua-discount and its [table
 syntax](http://michelf.com/projects/php-markdown/extra/#table); the desired result can often
@@ -826,7 +990,7 @@ and writer-generated documentation using different tools, and having to match th
 
 LDoc allows for source examples to be included in the documentation. For example, see the
 online documentation for [winapi](http://stevedonovan.github.com/winapi/api.html). The
-function `utf8_expand` has a `@see` reference to 'testu.lua' and following that link gives
+function `utf8_expand` has a **@see** reference to 'testu.lua' and following that link gives
 you a pretty-printed version of the code.
 
 The line in the `config.ld` that enables this is:
@@ -834,17 +998,18 @@ The line in the `config.ld` that enables this is:
     examples = {'examples', exclude = {'examples/slow.lua'}}
 
 That is, all files in the `examples` folder are to be pretty-printed, except for `slow.lua`
-which is meant to be called from one of the examples. The see-reference to `testu.lua`
-resolves to 'examples/testu.lua.html'.
+which is meant to be called from one of the examples.
+To link to an example, use a reference like `@{\testu.lua}`
+which resolves to 'examples/testu.lua.html'.
 
 Examples may link back to the API documentation, for instance the example `input.lua` has a
-@\{spawn_process} inline reference.
+`@{\spawn_process}` inline reference.
 
-By default, LDoc uses a built-in Lua code 'prettifier'. See-references are allowed in comments,
-and also in code if they're enclosed in backticks.
+By default, LDoc uses a built-in Lua code 'prettifier'. Reference links are allowed in comments,
+and also in code if they're enclosed in backticks. Lua and C are known languages.
 
 [lxsh](https://github.com/xolox/lua-lxsh)
-can be used (available from LuaRocks) if you want support for C as well. `pretty='lxsh'` will
+can be used (available from LuaRocks) if you want something more powerful. `pretty='lxsh'` will
 cause `lxsh` to be used, if available.
 
 ##  Readme files
@@ -856,10 +1021,10 @@ Like all good Github projects, Winapi has a `readme.md`:
 This goes under the 'Topics' global section; the 'Contents' of this document is generated
 from the second-level (##) headings of the readme.
 
-Readme files are always processed with the current Markdown processor, but may also contain @\{} references back
+Readme files are always processed with the current Markdown processor, but may also contain `@{\ref}` references back
 to the documentation and to example files. Any symbols within backticks will be expanded as
 references, if possible. As with doc comments, a link to a standard Lua function like
-@\{os.execute} will work as well. Any code sections will be pretty-printed as Lua, unless
+`@{\os.execute}` will work as well. Any code sections will be pretty-printed as Lua, unless
 the first indented line is '@plain'. (See the source for this readme to see how it's used.)
 
 Another name for `readme` is `topics`, which is more descriptive. From LDoc 1.2,
@@ -873,41 +1038,51 @@ second-level, then third-level headings will be used `###`, and so forth. The im
 that the first heading must be top-level relative to the headings that follow, and must
 start at the first line.
 
-A reference like @\{string.upper} is unambiguous, and will refer to the online Lua manual.
+A reference like `@{\string.upper}` is unambiguous, and will refer to the online Lua manual.
 In a project like Penlight, it can get tedious to have to write out fully qualified names
-like @\{pl.utils.printf}.  The first simplification is to use the `package` field to resolve
+like `@{\pl.utils.printf}`.  The first simplification is to use the `package` field to resolve
 unknown references, which in this case is 'pl'. (Previously we discussed how `package` is
 used to tell LDoc where the base package is in cases where the module author wishes to
 remain vague, but it does double-duty here.)  A further level of simplification comes from
-the @lookup directive in documents, which must start at the first column on its own line.
-For instance, if I am talking about `pl.utils`, then I can say "@lookup utils" and
-thereafter references like @\{printf} will resolve correctly.
+the `@lookup` directive in documents, which must start at the first column on its own line.
+For instance, if I am talking about `pl.utils`, then I can say `@lookup utils` and
+thereafter references like `@{\printf}` will resolve correctly.
 
 If you look at the source for this document, you will see a `@lookup doc.md` which allows
-direct references to sections like @{Readme_files|this}.
+direct references to sections like @{Readme_files|this} with `@{\Readme_files|this}`.
 
 Remember that the default is for references in backticks to be resolved; unlike @
 references, it is not an error if the reference cannot be found.
 
 The _sections_ of a document (the second-level headings) are also references. This
-particular section can be refered to as @\{doc.md.Resolving_References_in_Documents} - the
+particular section you are reading can be refered to as `@{\doc.md.Readme_files}` - the
 rule is that any non-alphabetic character is replaced by an underscore.
 
+Any indented blocks are assumed to be Lua, unless their first line is `@plain`. New
+with 1.4 is github-markdown-style fenced code blocks, which start with three backticks
+optionally followed by a language. The code continues until another three backticks
+is found: the language can be `c`, `cpp` or `cxx` for C/C++, anything else is Lua.
 
 ## Tag Modifiers
 
 Ay tag may have _tag modifiers_. For instance, you may say
-@\param[type=number] and this associates the modifier `type` with value `number` with this
-particular param tag. A shorthand can be introduced for this common case, which is "@tparam
-<type> <parmname> <comment>"; in the same way @\treturn is defined.
+`@param[type=number]` and this associates the modifier `type` with value `number` with this
+particular param tag. A shorthand has been introduced for this common case, which is `@tparam
+<type> <parmname> <comment>`; in the same way `@treturn` is defined.
 
 This is useful for larger projects where you want to provide the argument and return value
-types for your API, in a structured way that can be easily extracted later. There is a
-useful function for creating new tags that can be used in `config.ld`:
+types for your API, in a structured way that can be easily extracted later.
+
+These types can be combined, so that "?string|number" means "ether a string or a number";
+"?string" is short for "?|nil|string". However, for this last case you should usually use the
+`opt` modifier discussed below.
+
+There is a useful function for creating new tags that can be used in `config.ld`:
 
     tparam_alias('string','string')
 
-That is, "@string" will now have the same meaning as "@tparam string".
+That is, **@string** will now have the same meaning as "@tparam string"; this also applies
+to the optional type syntax "?|T1|T2".
 
 From 1.3, the following standard type aliases are predefined:
 
@@ -919,27 +1094,26 @@ From 1.3, the following standard type aliases are predefined:
   *  `tab` 'table'
   * `thread`
 
-The exact form of `<type>` is not defined, but here is a suggested scheme:
+When using 'colon-style' (@{colon.lua}) it's possible to directly use types by prepending
+them with '!'; '?' is also naturally understood.
 
-    number  -- a plain type
-    Bonzo   -- a known type; a reference link will be generated
-    {string,number}  -- a 'list' tuple, built from type expressions
-    {A=string,N=number} -- a 'struct' tuple, ditto
-    {Bonzo,...}   -- an array of Bonzo objects
-    {[string]=Bonzo,...} -- a map of Bonzo objects with string keys
-    Array(Bonzo) -- (assuming that Array is a container)
+The exact form of `<type>` is not defined, but here is one suggested scheme:
 
-Currently the `type` modifier is the only one known and used by LDoc when generating HTML
-output. However, any other modifiers are allowed and are available for use with your own
-templates or for extraction by your own tools.
+  * `number`  -- a plain type
+  * `Bonzo`   -- a known type; a reference link will be generated
+  * `{string,number}`  -- a 'list' tuple of two values, built from type expressions
+  * `{A=string,N=number}` -- a 'struct', ditto (But it's often better to create a named table and refer to it)
+  * `{Bonzo,...}`   -- an array of Bonzo objects
+  * `{[string]=Bonzo,...}` -- a map of Bonzo objects with string keys
+  * `Array(Bonzo)` -- (assuming that Array is a container type)
 
 The `alias` function within configuration files has been extended so that alias tags can be
 defined as a tag plus a set of modifiers.  So `tparam` is defined as:
 
     alias('tparam',{'param',modifiers={type="$1"}})
 
-As an extension, you're allowed to use '@param' tags in table definitions. This makes it
-possible to use type alias like '@string' to describe fields, since they will expand to
+As an extension, you're allowed to use **@param** tags in table definitions. This makes it
+possible to use type aliases like **@string** to describe fields, since they will expand to
 'param'.
 
 Another modifier understood by LDoc is `opt`. For instance,
@@ -953,7 +1127,7 @@ Another modifier understood by LDoc is `opt`. For instance,
     end
     ----> displayed as: two (one [, two], three [, four])
 
-This modifier can also be used with type aliases. If a value is given for the modifier
+This modifier can also be used with type aliases. If a value is given for `opt`
 then LDoc can present this as the default value for this optional argument.
 
     --- a function with typed args.
@@ -968,11 +1142,41 @@ then LDoc can present this as the default value for this optional argument.
     end
     ----> displayed as: one (name, age [, calender='gregorian' [, offset=0]])
 
-(See `tests/styles/four.lua`)
+
+(See @{four.lua}, rendered [here](http://stevedonovan.github.io/ldoc/examples/four))
+
+An experimental feature in 1.4 allows different 'return groups' to be defined. There may be
+multiple **@return** tags, and the meaning of this is well-defined, since Lua functions may
+return multiple values.  However, being a dynamic language it may return a single value if
+successful and two values (`nil`,an error message) if there is an error. This is in fact the
+convention for returning 'normal' errors (like 'file not found') as opposed to parameter errors
+(like 'file must be a string') that are often raised as errors.
+
+Return groups allow a documenter to specify the various possible return values of a function,
+by specifying _number_ modifiers. All `return` tags with the same digit modifier belong together
+as a group:
+
+    -----
+    -- function with return groups.
+    -- @return[1] result
+    -- @return[2] nil
+    -- @return[2] error message
+    function mul1() ... end
+
+This is the first function in @{multiple.lua}, and the [output](http://stevedonovan.github.io/ldoc/examples/multiple)
+shows how return groups are presented, with an **Or** between the groups.
+
+This is rather clumsy, and so there is a shortcut, the **@error** tag which achieves the same result,
+with helpful type information.
+
+Currently the `type`,`opt` and `<digit>` modifiers are the only ones known and used by LDoc when generating HTML
+output. However, any other modifiers are allowed and are available for use with your own
+templates or for extraction by your own tools.
+
 
 ## Fields allowed in `config.ld`
 
-These mostly have the same meaning as the corresponding parameters:
+_Same meaning as the corresponding parameters:_
 
   - `file`  a file or directory containing sources. In `config.ld` this can also be a table
 of files and directories.
@@ -991,26 +1195,45 @@ of files and directories.
 template. In `config.ld` they may also be `true`, meaning use the same directory as the
 configuration file.
   - `merge` allow documentation from different files to be merged into modules without
-     explicit @submodule tag
+explicit **@submodule** tag
 
-These only appear in `config.ld`:
+_These only appear in the configuration file:_
 
-  - `description` a project description used under the project title
+  - `description` a short project description used under the project title
+  - `full_description` when you _really_ need a longer project description
   - `examples` a directory or file: can be a table
   - `readme` or `topics` readme files (to be processed with Markdown)
   - `pretty` code prettify 'lua' (default) or 'lxsh'
-  - `charset` use if you want to override the UTF-8 default (also @charset in files)
+  - `charset` use if you want to override the UTF-8 default (also **@charset** in files)
+  - `sort` set if you want all items in alphabetical order
   - `no_return_or_parms` don't show parameters or return values in output
-  - `backtick_references` whether references in backticks will be resolved
+  - `backtick_references` whether references in backticks will be resolved. Happens by default
+when using Markdown. When explicit will expand non-references in backticks into `<code>` elements
   - `plain` set to true if `format` is set but you don't want code comments processed
   - `wrap` ??
   -  `manual_url` point to an alternative or local location for the Lua manual, e.g.
 'file:///D:/dev/lua/projects/lua-5.1.4/doc/manual.html'
   - `no_summary` suppress the Contents summary
   - `custom_see_handler` function that filters see-references
-  - `not_luadoc` set to `true` if the docs break LuaDoc compatibility
+  - `custom_display_name_handler` function that formats an item's name. The arguments are the item
+and the default function used to format the name. For example, to show an icon or label beside any
+function tagged with a certain tag:
+      -- define a @callback tag:
+      custom_tags = { { 'callback', hidden = true } }
 
-Available functions are:
+      -- show a label beside functions tagged with @callback.
+      custom_display_name_handler = function(item, default_handler)
+        if item.type == 'function' and item.tags.callback then
+          return item.name .. ' [callback]'
+        end
+        return default_handler(item)
+      end
+
+  - `not_luadoc` set to `true` if the docs break LuaDoc compatibility
+  - `no_space_before_args` set to `true` if you do not want a space between a function's name and its arguments.
+  - `template_escape` overrides the usual '#' used for Lua code in templates. This needs to be changed if the output format is Markdown, for instance.
+
+_Available functions are:_
 
   - `alias(a,tag)` provide an alias `a` for the tag `tag`, for instance `p` as short for
 `param`
@@ -1019,8 +1242,8 @@ an extension to be recognized as this language
   - `add_section`
   - `new_type(tag,header,project_level)` used to add new tags, which are put in their own
 section `header`. They may be 'project level'.
-  - `tparam_alias(name,type)` for instance, you may wish that `Object` means `@\tparam
-Object`.
+  - `tparam_alias(name,type)` for instance, you may wish that `Object` becomes a new tag alias
+that means `@tparam Object`.
   - `custom_see_handler(pattern,handler)`. If a reference matches `pattern`, then the
 extracted values will be passed to `handler`. It is expected to return link text
 and a suitable URI. (This match will happen before default processing.)
@@ -1054,8 +1277,9 @@ Although not currently rendered by the template as HTML, they can be extracted b
 
 ## Generating HTML
 
-LDoc, like LuaDoc, generates output HTML using a template, in this case `ldoc_ltp.lua`. This
+LDoc, like LuaDoc, generates output HTML using a template, in this case `ldoc/html/ldoc_ltp.lua`. This
 is expanded by the powerful but simple preprocessor devised originally by [Rici
+Lake](http://lua-users.org/wiki/SlightlyLessSimpleLuaPreprocessor) which is now part of
 Lake](http://lua-users.org/wiki/SlightlyLessSimpleLuaPreprocessor) which is now part of
 Penlight. There are two rules - any line starting with '#' is Lua code, which can also be
 embedded with '$(...)'.
@@ -1069,7 +1293,11 @@ embedded with '$(...)'.
 
 This is then styled with `ldoc.css`. Currently the template and stylesheet is very much
 based on LuaDoc, so the results are mostly equivalent; the main change that the template has
-been more generalized. The default location (indicated by '!') is the directory of `ldoc.lua`.
+been more generalized. The default location (indicated by '!') is the directory of `ldoc_ltp.lua`.
+
+You will notice that the built-in templates and stylesheets end in `.lua`; this is simply to
+make it easier for LDoc to find them.  Where you are customizing one or both of the template
+and stylesheet, they will have their usual extensions.
 
 You may customize how you generate your documentation by specifying an alternative style
 sheet and/or template, which can be deployed with your project. The parameters are `--style`
@@ -1081,12 +1309,25 @@ be a valid directory relative to the ldoc invocation.
 An example of fully customized documentation is `tests/example/style`: this is what you
 could call 'minimal Markdown style' where there is no attempt to tag things (except
 emphasizing parameter names). The narrative alone _can_ to be sufficient, if it is written
-appropriately.
+well.
+
+There are two other stylesheets available in LDoc since 1.4; the first is `ldoc_one.css` which is what
+you get from `one=true` and the second is `ldoc_pale.css`. This is a lighter theme which
+might give some relief from the heavier colours of the default. You can use this style with
+`style="!pale"` or `-s !pale`.
+See the [Lake](http://stevedonovan.github.io/lake/modules/lakelibs.html) documentation
+as an example of its use.
 
 Of course, there's no reason why LDoc must always generate HTML. `--ext` defines what output
 extension to use; this can also be set in the configuration file. So it's possible to write
 a template that converts LDoc output to LaTex, for instance. The separation of processing
 and presentation makes this kind of new application possible with LDoc.
+
+From 1.4, LDoc has some limited support for generating Markdown output, although only
+for single files currently. Use `--ext md` for this.  'ldoc/html/ldoc_md_ltp.lua' defines
+the template for Markdown, but this can be overriden with `template` as above. It's another
+example of minimal structure, and provides a better place to learn about these templates than the
+rather elaborate default HTML template.
 
 ## Internal Data Representation
 
@@ -1120,7 +1361,7 @@ The basic data structure is straightforward: it is an array of 'modules' (projec
 entities, including scripts) which each contain an `item` array (functions, tables and so
 forth).
 
-For instance, to find all functions which don't have a @return tag:
+For instance, to find all functions which don't have a **@return** tag:
 
     return {
        filter = function (t)
@@ -1134,8 +1375,8 @@ For instance, to find all functions which don't have a @return tag:
        end
     }
 
-The internal naming is not always so consistent; `ret` corresponds to @return, and `params`
-corresponds to @param.  `item.params` is an array of the function parameters, in order; it
+The internal naming is not always so consistent; `ret` corresponds to **@return**, and `params`
+corresponds to **@param**.  `item.params` is an array of the function parameters, in order; it
 is also a map from these names to the individual descriptions of the parameters.
 
 `item.modifiers` is a table where the keys are the tags and the values are arrays of

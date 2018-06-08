@@ -15,14 +15,25 @@ local backtick_references
 -- inline <references> use same lookup as @see
 local function resolve_inline_references (ldoc, txt, item, plain)
    local res = (txt:gsub('@{([^}]-)}',function (name)
+      if name:match '^\\' then return '@{'..name:sub(2)..'}' end
       local qname,label = utils.splitv(name,'%s*|')
       if not qname then
          qname = name
       end
-      local ref,err = markup.process_reference(qname)
+      local ref, err
+      local custom_ref, refname = utils.splitv(qname,':')
+      if custom_ref and ldoc.custom_references then
+         custom_ref = ldoc.custom_references[custom_ref]
+         if custom_ref then
+            ref,err = custom_ref(refname)
+         end
+      end
+      if not ref then
+         ref,err = markup.process_reference(qname)
+      end
       if not ref then
          err = err .. ' ' .. qname
-         if item then item:warning(err)
+         if item and item.warning then item:warning(err)
          else
            io.stderr:write('nofile error: ',err,'\n')
          end
@@ -43,9 +54,12 @@ local function resolve_inline_references (ldoc, txt, item, plain)
       res  = res:gsub('`([^`]+)`',function(name)
          local ref,err = markup.process_reference(name)
          if ref then
+            if not plain and name then
+               name = name:gsub('_', '\\_')
+            end
             return ('<a href="%s">%s</a> '):format(ldoc.href(ref),name)
          else
-            return '`'..name..'`'
+            return '<code>'..name..'</code>'
          end
       end)
    end
@@ -56,7 +70,8 @@ end
 -- they can appear in the contents list as a ToC.
 function markup.add_sections(F, txt)
    local sections, L, first = {}, 1, true
-   local title_pat_end, title_pat = '[^#]%s*(.+)'
+   local title_pat
+   local lstrip = stringx.lstrip
    for line in stringx.lines(txt) do
       if first then
          local level,header = line:match '^(#+)%s*(.+)'
@@ -65,14 +80,16 @@ function markup.add_sections(F, txt)
          else
             level = '##'
          end
-         title_pat = '^'..level..title_pat_end
+         title_pat = '^'..level..'([^#]%s*.+)'
+         title_pat = lstrip(title_pat)
          first = false
+         F.display_name = header
       end
       local title = line:match (title_pat)
       if title then
-         -- Markdown does allow this pattern
+         -- Markdown allows trailing '#'...
          title = title:gsub('%s*#+$','')
-         sections[L] = F:add_document_section(title)
+         sections[L] = F:add_document_section(lstrip(title))
       end
       L = L + 1
    end
@@ -86,8 +103,8 @@ local function indent_line (line)
    return indent,line
 end
 
-local function non_blank (line)
-   return line:find '%S'
+local function blank (line)
+   return not line:find '%S'
 end
 
 local global_context, local_context
@@ -115,6 +132,8 @@ local function process_multiline_markdown(ldoc, txt, F)
       code = concat(code,'\n')
       if code ~= '' then
          local err
+         -- If we omit the following '\n', a '--' (or '//') comment on the
+         -- last line won't be recognized.
          code, err = prettify.code(lang,filename,code..'\n',L,false)
          append(res,'<pre>')
          append(res, code)
@@ -152,7 +171,7 @@ local function process_multiline_markdown(ldoc, txt, F)
       if indent >= 4 then -- indented code block
          local code = {}
          local plain
-         while indent >= 4 or not non_blank(line) do
+         while indent >= 4 or blank(line) do
             if not start_indent then
                start_indent = indent
                if line:match '^%s*@plain%s*$' then
@@ -161,7 +180,7 @@ local function process_multiline_markdown(ldoc, txt, F)
                end
             end
             if not plain then
-               append(code,line:sub(start_indent))
+               append(code,line:sub(start_indent + 1))
             else
                append(res,line)
             end
@@ -170,7 +189,9 @@ local function process_multiline_markdown(ldoc, txt, F)
             indent, line = indent_line(line)
          end
          start_indent = nil
-         if #code > 1 then table.remove(code) end
+         while #code > 1 and blank(code[#code]) do  -- trim blank lines.
+           table.remove(code)
+         end
          pretty_code (code,'lua')
       else
          local section = F.sections[L]
@@ -281,25 +302,29 @@ end
 function markup.create (ldoc, format, pretty)
    local processor
    markup.plain = true
+   if format == 'backtick' then
+      ldoc.backtick_references = true
+      format = 'plain'
+   end
    backtick_references = ldoc.backtick_references
    global_context = ldoc.package and ldoc.package .. '.'
    prettify.set_prettifier(pretty)
 
-   markup.process_reference = function(name)
+   markup.process_reference = function(name,istype)
       if local_context == 'none.' and not name:match '%.' then
          return nil,'not found'
       end
       local mod = ldoc.single or ldoc.module or ldoc.modules[1]
-      local ref,err = mod:process_see_reference(name, ldoc.modules)
+      local ref,err = mod:process_see_reference(name, ldoc.modules, istype)
       if ref then return ref end
       if global_context then
          local qname = global_context .. name
-         ref = mod:process_see_reference(qname, ldoc.modules)
+         ref = mod:process_see_reference(qname, ldoc.modules, istype)
          if ref then return ref end
       end
       if local_context then
          local qname = local_context .. name
-         ref = mod:process_see_reference(qname, ldoc.modules)
+         ref = mod:process_see_reference(qname, ldoc.modules, istype)
          if ref then return ref end
       end
       -- note that we'll return the original error!

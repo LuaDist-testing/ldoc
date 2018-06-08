@@ -1,18 +1,10 @@
--- This file was automatically generated for the LuaDist project.
-
 package = "ldoc"
 version = "1.3.12-1"
 
--- LuaDist source
 source = {
-  tag = "1.3.12-1",
-  url = "git://github.com/LuaDist-testing/ldoc.git"
+  dir="ldoc",
+  url = "http://stevedonovan.github.com/files/ldoc-1.3.12.zip"
 }
--- Original source
--- source = {
---   dir="ldoc",
---   url = "http://stevedonovan.github.com/files/ldoc-1.3.12.zip"
--- }
 
 description = {
   summary = "A Lua Documentation Tool",
@@ -65,4 +57,5 @@ build = {
     }
   }
 }
+
 

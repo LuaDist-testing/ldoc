@@ -24,7 +24,6 @@ return [==[
 # local use_li = ldoc.use_li
 # local display_name = ldoc.display_name
 # local iter = ldoc.modules.iter
-# ---local M = ldoc.markup
 # local function M(txt,item) return ldoc.markup(txt,item,ldoc.plain) end
 # local nowrap = ldoc.wrap and '' or 'nowrap'
 
@@ -54,7 +53,7 @@ return [==[
 # if ldoc.no_summary and module and not ldoc.one then -- bang out the functions on the side
 # for kind, items in module.kinds() do
 <h2>$(kind)</h2>
-<ul>
+<ul class="nowrap">
 # for item in items() do
     <li><a href="#$(item.name)">$(display_name(item))</a></li>
 # end
@@ -62,21 +61,19 @@ return [==[
 # end
 # end
 # -------- contents of project ----------
-# -- if not ldoc.no_summary then
 # local this_mod = module and module.name
 # for kind, mods, type in ldoc.kinds() do
 #  if not ldoc.kinds_allowed or ldoc.kinds_allowed[type] then
 <h2>$(kind)</h2>
-<ul>
-#  for mod in mods() do
-#   if mod.name == this_mod then -- highlight current module, link to others
-  <li><strong>$(mod.name)</strong></li>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+#  for mod in mods() do local name = ldoc.module_name(mod)
+#   if mod.name == this_mod then
+  <li><strong>$(name)</strong></li>
 #   else
-  <li><a href="$(ldoc.ref_to_module(mod))">$(mod.name)</a></li>
+  <li><a href="$(ldoc.ref_to_module(mod))">$(name)</a></li>
 #   end
 #  end
 # end
-# -- end
 </ul>
 # end
 
@@ -84,13 +81,10 @@ return [==[
 
 <div id="content">
 
-#if module then
-<h1>$(ldoc.titlecase(module.type)) <code>$(module.name)</code></h1>
-# end
-
 # if ldoc.body then -- verbatim HTML as contents; 'non-code' entries
     $(ldoc.body)
 # elseif module then -- module documentation
+<h1>$(ldoc.module_typename(module)) <code>$(module.name)</code></h1>
 <p>$(M(module.summary,module))</p>
 <p>$(M(module.description,module))</p>
 #   if module.usage then
@@ -105,8 +99,8 @@ return [==[
 #   if module.info then
     <h3>Info:</h3>
     <ul>
-#     for tag, value in ldoc.pairs(module.info) do
-        <li><strong>$(tag)</strong>: $(value)</li>
+#     for tag, value in module.info:iter() do
+        <li><strong>$(tag)</strong>: $(M(value,module))</li>
 #     end
     </ul>
 #   end -- if module.info
@@ -155,8 +149,26 @@ return [==[
     <dd>
     $(M(ldoc.descript(item),item))
 
+#   if ldoc.custom_tags then
+#    for custom in iter(ldoc.custom_tags) do
+#     local tag = item.tags[custom[1]]
+#     if tag and not custom.hidden then
+#      local li,il = use_li(tag)
+    <h3>$(custom.title or custom[1]):</h3>
+    <ul>
+#      for value in iter(tag) do
+         $(li)$(custom.format and custom.format(value) or M(value))$(il)
+#      end -- for
+#     end -- if tag
+    </ul>
+#    end -- iter tags
+#   end
+
 #  if show_parms and item.params and #item.params > 0 then
-    <h3>$(module.kinds:type_of(item).subnames):</h3>
+#    local subnames = module.kinds:type_of(item).subnames
+#    if subnames then
+    <h3>$(subnames):</h3>
+#    end
     <ul>
 #   for parm in iter(item.params) do
 #     local param,sublist = item:subparam(parm)
@@ -165,12 +177,19 @@ return [==[
         <ul>
 #     end
 #     for p in iter(param) do
-#        local name,tp = item:display_name_of(p), ldoc.typename(item:type_of_param(p))
+#        local name,tp,def = item:display_name_of(p), ldoc.typename(item:type_of_param(p)), item:default_of_param(p)
         <li><span class="parameter">$(name)</span>
 #       if tp ~= '' then
             <span class="types">$(tp)</span>
-#        end
-        $(M(item.params[p],item))</li>
+#       end
+        $(M(item.params[p],item))
+#       if def then
+         (<em>default</em> $(def))
+#       end
+#       if item:readonly(p) then
+          <em>readonly</em>
+#       end
+        </li>
 #     end
 #     if sublist then
         </li></ul>
@@ -179,19 +198,31 @@ return [==[
     </ul>
 #   end -- if params
 
-#   if show_return and item.ret then
-#     local li,il = use_li(item.ret)
+#  if show_return and item.retgroups then local groups = item.retgroups
     <h3>Returns:</h3>
+#   for i,group in ldoc.ipairs(groups) do local li,il = use_li(group)
     <ol>
-#     for i,r in ldoc.ipairs(item.ret) do
+#   for r in group:iter() do local type, ctypes = item:return_type(r); local rt = ldoc.typename(type)
         $(li)
-#       local tp = ldoc.typename(item:type_of_ret(i))
-#       if tp ~= '' then
-          <span class="types">$(tp)</span>
-#       end
-        $(M(r,item))$(il)
-#     end -- for
+#     if rt ~= '' then
+           <span class="types">$(rt)</span>
+#     end
+        $(M(r.text,item))$(il)
+#    if ctypes then
+      <ul>
+#    for c in ctypes:iter() do
+            <li><span class="parameter">$(c.name)</span>
+            <span class="types">$(ldoc.typename(c.type))</span>
+            $(M(c.comment,item))</li>
+#     end
+        </ul>
+#    end -- if ctypes
+#     end -- for r
     </ol>
+#   if i < #groups then
+     <h3>Or</h3>
+#   end
+#   end -- for group
 #   end -- if returns
 
 #   if show_return and item.raise then
@@ -201,7 +232,7 @@ return [==[
 
 #   if item.see then
 #     local li,il = use_li(item.see)
-    <h3>see also:</h3>
+    <h3>See also:</h3>
     <ul>
 #     for see in iter(item.see) do
          $(li)<a href="$(ldoc.href(see))">$(see.label)</a>$(il)
@@ -250,7 +281,7 @@ return [==[
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
-<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.3.12</a></i>
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.2</a></i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>
