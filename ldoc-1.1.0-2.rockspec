@@ -1,11 +1,11 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "ldoc"
-version = "1.1.0-1"
+version = "1.1.0-2"
 
 -- LuaDist source
 source = {
-  tag = "1.1.0-1",
+  tag = "1.1.0-2",
   url = "git://github.com/LuaDist-testing/ldoc.git"
 }
 -- Original source
@@ -23,8 +23,6 @@ description = {
    pretty-printed example files
   ]],
   license = "MIT/X11",
-  homepage = "http://ldoc.org",
-  maintainer = "you@your.org"
 }
 
 
@@ -51,7 +49,7 @@ build = {
   },
   install = {
     bin = {
-      ldoc = "ldoc.lua"
+      "ldoc.lua"
     }
   }
 }
